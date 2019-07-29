@@ -29,14 +29,6 @@
 #include <string>
 
 // user include files
-// #include "FWCore/Framework/interface/Frameworkfwd.h"
-// #include "FWCore/Framework/interface/one/EDAnalyzer.h"
-
-// #include "FWCore/Framework/interface/Event.h"
-// #include "FWCore/Framework/interface/MakerMacros.h"
-
-// #include "FWCore/ParameterSet/interface/ParameterSet.h"
-
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "DataFormats/Common/interface/Handle.h"
@@ -91,7 +83,6 @@ private:
     {"hOverE", "sigmaIEtaIEta", "neutIso", "chIso", "phoIso"},
     {"chIso", "hOverE", "sigmaIEtaIEta", "neutIso", "phoIso"}
   };
-  // std::map<std::string, unsigned int> photonIDIndices_;
   std::map<std::string, int> nHistBins_ = {
     {"hOverE", 500},
     {"sigmaIEtaIEta", 500},
@@ -107,11 +98,11 @@ private:
     {"phoIso", 0.}
   };
   std::map<std::string, float> upperHistLimits_ = {
-    {"hOverE", 0.1},
+    {"hOverE", 0.2},
     {"sigmaIEtaIEta", 0.025},
     {"chIso", 60.},
-    {"neutIso", 60.},
-    {"phoIso", 60.}
+    {"neutIso", 10.},
+    {"phoIso", 10.}
   };
   std::map<std::string, TH1F*> h_global1D_TruthMatched_;
   std::map<unsigned int, std::map<unsigned int, TH1F*> > h_stepByStep_TruthMatched_; // Convention: h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]
@@ -119,8 +110,6 @@ private:
   std::map<std::string, TH1F*> h_NMinus1_TruthMatched_;
   std::map<std::string, std::map<std::string, TH2F*> > h_global2D_TruthMatched_;
   std::map<std::string, std::map<std::string, TH2F*> > h_NMinus2_TruthMatched_;
-  // std::map<std::string, std::map<unsigned int, TH1F*> > h_truthMatched_all_;
-  // std::map<unsigned int, std::string> h_truthMatched_all_suffixes_;
   TH1F* h_nMediumPhotons_;
   TH1F* h_nLoosePhotons_;
   TH1F* h_nMediumPhotons_TruthMatched_;
@@ -151,12 +140,10 @@ private:
   bool passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi);
   float get_deltaR(const float& source_eta, const float& source_phi, const float& target_eta, const float& target_phi);
   float getMinDeltaR(const float& eta, const float& phi, std::vector<std::pair<float, float> >& targetEtaPhiList);
+  void fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched);
   void fillGlobal2DAndNMinus2Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties);
   void fillStepByStepHistograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties);
-  // unsigned int powint(const unsigned int& base, const unsigned int& exponent); // lol: the C++ standard libraries apparently don't have this function
   template<typename valueType> void checkMapKeysAgainstVector(const std::map<std::string, valueType>& mapToCheck, const std::vector<std::string>& allowedValues);
-  // std::string getTruthMatchedHistSuffix(const unsigned int& enableBits);
-  // void fillTruthMatchedHistograms(const std::bitset& bits, const std::map<std::string, float> values);
 
   // ----------member data ---------------------------
 };
@@ -180,25 +167,13 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   checkMapKeysAgainstVector(lowerHistLimits_, photonIDCriteria_);
   checkMapKeysAgainstVector(upperHistLimits_, photonIDCriteria_);
 
-  // for (unsigned int criterionIndex = 0; criterionIndex < static_cast<unsigned int>(photonIDCriteria_.size()); ++criterionIndex) {
-  //   std::string criterion = photonIDCriteria_.at(criterionIndex);
-  //   photonIDIndices_[criterion] = criterionIndex;
-  // }
-  // checkMapKeysAgainstVector(photonIDIndices_, photonIDCriteria_);
-
-  // for (unsigned int enableBits = 0; enableBits < powint(2, photonIDCriteria_.size()); ++enableBits) {// e.g. with 5 bits, enableBits ranges from 0 = 00000 to 31 = 11111
-  //   std::string truthMatched_suffix = getTruthMatchedHistSuffix(enableBits);
-  //   h_truthMatched_all_suffixes_[enableBits] = truthMatched_suffix;
-  //   if (verbosity_ >= 2) std::cout << "At enableBits = " << enableBits << " (binary: " << std::bitset<photonIDCriteria_.size()>(enableBits) << "), truthMatched_suffix: " << truthMatched_suffix << std::endl;
-  // }
-
   for (const auto& criterion: photonIDCriteria_) {
     h_global1D_TruthMatched_[criterion] = new TH1F((criterion + "_global_TruthMatched").c_str(), (criterion + "_global_TruthMatched").c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
+    h_global1D_TruthMatched_[criterion]->StatOverflows(kTRUE);
     h_NMinus1_[criterion] = new TH1F((criterion + "_NMinus1").c_str(), (criterion + "_NMinus1").c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
+    h_NMinus1_[criterion]->StatOverflows(kTRUE);
     h_NMinus1_TruthMatched_[criterion] = new TH1F((criterion + "_NMinus1_TruthMatched").c_str(), (criterion + "_NMinus1_TruthMatched").c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
-    // for (unsigned int enableBits = 0; enableBits < powint(2, photonIDCriteria_.size()); ++enableBits) {// e.g. with 5 bits, enableBits ranges from 0 = 00000 to 31 = 11111
-    //   h_truthMatched_all_[criterion][enableBits] = new TH1F((criterion + "_all_passing_" + h_truthMatched_all_suffixes_[enableBits]).c_str(), (criterion + "_all_passing_" + h_truthMatched_all_suffixes_[enableBits]).c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
-    // }
+    h_NMinus1_TruthMatched_[criterion]->StatOverflows(kTRUE);
   }
   for (unsigned int criterion1Index = 0; criterion1Index < (-1+photonIDCriteria_.size()); ++criterion1Index) {
     std::string& criterion1 = photonIDCriteria_.at(criterion1Index);
@@ -206,9 +181,11 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
       std::string& criterion2 = photonIDCriteria_.at(criterion2Index);
       std::string prefix2D = criterion1 + "_" + criterion2;
       h_NMinus2_TruthMatched_[criterion1][criterion2] = new TH2F((prefix2D + "_NMinus2_TruthMatched").c_str(), (prefix2D + "_NMinus2_TruthMatched").c_str(), nHistBins_.at(criterion1), lowerHistLimits_.at(criterion1), upperHistLimits_.at(criterion1), nHistBins_.at(criterion2), lowerHistLimits_.at(criterion2), upperHistLimits_.at(criterion2));
+      h_NMinus2_TruthMatched_[criterion1][criterion2]->StatOverflows(kTRUE);
       h_NMinus2_TruthMatched_[criterion1][criterion2]->GetXaxis()->SetTitle(criterion1.c_str());
       h_NMinus2_TruthMatched_[criterion1][criterion2]->GetYaxis()->SetTitle(criterion2.c_str());
       h_global2D_TruthMatched_[criterion1][criterion2] = new TH2F((prefix2D + "_global2D_TruthMatched").c_str(), (prefix2D + "_global2D_TruthMatched").c_str(), nHistBins_.at(criterion1), lowerHistLimits_.at(criterion1), upperHistLimits_.at(criterion1), nHistBins_.at(criterion2), lowerHistLimits_.at(criterion2), upperHistLimits_.at(criterion2));
+      h_global2D_TruthMatched_[criterion1][criterion2]->StatOverflows(kTRUE);
       h_global2D_TruthMatched_[criterion1][criterion2]->GetXaxis()->SetTitle(criterion1.c_str());
       h_global2D_TruthMatched_[criterion1][criterion2]->GetYaxis()->SetTitle(criterion2.c_str());
     }
@@ -228,25 +205,36 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
       unsigned int stepNumber = stepIndex + 1;
       const std::string& criterion = sequence.at(stepIndex);
       h_stepByStep_TruthMatched_[sequenceIndex][stepIndex] = new TH1F((stepByStepPrefix + "step" + std::to_string(stepNumber)).c_str(), (stepByStepPrefix + "step" + std::to_string(stepNumber)).c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
+      h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]->StatOverflows(kTRUE);
       h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]->GetXaxis()->SetTitle(criterion.c_str());
     }
   }
 
   h_nMediumPhotons_ = new TH1F("nMediumPhotons", "nMediumPhotons", 10, -0.5, 9.5);
+  h_nMediumPhotons_->StatOverflows(kTRUE);
   h_nLoosePhotons_ = new TH1F("nLoosePhotons", "nLoosePhotons", 10, -0.5, 9.5);
+  h_nLoosePhotons_->StatOverflows(kTRUE);
   h_nMediumPhotons_TruthMatched_ = new TH1F("nMediumPhotons_TruthMatched", "nMediumPhotons_TruthMatched", 10, -0.5, 9.5);
+  h_nMediumPhotons_TruthMatched_->StatOverflows(kTRUE);
   h_nLoosePhotons_TruthMatched_ = new TH1F("nLoosePhotons_TruthMatched", "nLoosePhotons_TruthMatched", 10, -0.5, 9.5);
+  h_nLoosePhotons_TruthMatched_->StatOverflows(kTRUE);
   h_selectionRegion_ = new TH1F("selectionRegion", "selectionRegion", 4, -0.5, 3.5);
+  h_selectionRegion_->StatOverflows(kTRUE);
   h_photonType_ = new TH1F("photonType", "photonType", 5, 0.5, 5.5);
+  h_photonType_->StatOverflows(kTRUE);
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(1.0), "medium");
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(2.0), "medium, truth-matched");
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(3.0), "loose");
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(4.0), "loose, truth-matched");
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(5.0), "all, truth-matched");
   h_nPU_ = new TH1F("nPU", "nPU", 200, -0.5, 199.5);
+  h_nPU_->StatOverflows(kTRUE);
   h_rho_ = new TH1F("rho", "rho", 500, 0., 100.);
+  h_rho_->StatOverflows(kTRUE);
   h_mediumFakeCriteria_ = new TH2F("mediumFakeCriteria", "ID criteria: (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
+  h_mediumFakeCriteria_->StatOverflows(kTRUE);
   h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
+  h_mediumFakeCriteria_TruthMatched_->StatOverflows(kTRUE);
   outputPath_ = iConfig.getUntrackedParameter<std::string>("outputPath");
   outputFile_ = new TFile(outputPath_.c_str(), "RECREATE");
   verbosity_ = iConfig.getUntrackedParameter<int>("verbosity");
@@ -382,38 +370,36 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       photonProperties["hOverE"] = hOverE;
       photonProperties["sigmaIEtaIEta"] = sigmaIEtaIEta;
       photonProperties["chIso"] = rhoCorrectedChargedHadronIsolation;
-      photonProperties["neutIso"] = rhoCorrectedNeutralHadronIsolation;
-      photonProperties["phoIso"] = rhoCorrectedPhotonIsolation;
+      photonProperties["neutIso"] = rhoCorrectedNeutralHadronIsolation_scaled;
+      photonProperties["phoIso"] = rhoCorrectedPhotonIsolation_scaled;
+      checkMapKeysAgainstVector(photonIDBits, photonIDCriteria_);
+      checkMapKeysAgainstVector(photonProperties, photonIDCriteria_);
+      fillGlobal1DAndNMinus1Histograms(photonIDBits, photonProperties, isTruthMatched);
       if (isTruthMatched) {
-        h_global1D_TruthMatched_["hOverE"]->Fill(hOverE);
-        h_global1D_TruthMatched_["sigmaIEtaIEta"]->Fill(sigmaIEtaIEta);
-        h_global1D_TruthMatched_["chIso"]->Fill(rhoCorrectedChargedHadronIsolation);
-        h_global1D_TruthMatched_["neutIso"]->Fill(rhoCorrectedNeutralHadronIsolation_scaled);
-        h_global1D_TruthMatched_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
         h_photonType_->Fill(5.0);
         fillGlobal2DAndNMinus2Histograms(photonIDBits, photonProperties);
         fillStepByStepHistograms(photonIDBits, photonProperties);
       }
-      if (passes_sigmaIEtaIEta && passes_chIso && passes_neutIso && passes_phoIso) {
-        h_NMinus1_["hOverE"]->Fill(hOverE);
-        if (isTruthMatched) h_NMinus1_TruthMatched_["hOverE"]->Fill(hOverE);
-      }
-      if (passes_hOverE && passes_chIso && passes_neutIso && passes_phoIso) {
-        h_NMinus1_["sigmaIEtaIEta"]->Fill(sigmaIEtaIEta);
-        if (isTruthMatched) h_NMinus1_TruthMatched_["sigmaIEtaIEta"]->Fill(sigmaIEtaIEta);
-      }
-      if (passes_hOverE && passes_sigmaIEtaIEta && passes_neutIso && passes_phoIso) {
-        h_NMinus1_["chIso"]->Fill(rhoCorrectedChargedHadronIsolation);
-        if (isTruthMatched) h_NMinus1_TruthMatched_["chIso"]->Fill(rhoCorrectedChargedHadronIsolation);
-      }
-      if (passes_hOverE && passes_sigmaIEtaIEta && passes_chIso && passes_phoIso) {
-        h_NMinus1_["neutIso"]->Fill(rhoCorrectedNeutralHadronIsolation_scaled);
-        if (isTruthMatched) h_NMinus1_TruthMatched_["neutIso"]->Fill(rhoCorrectedNeutralHadronIsolation_scaled);
-      }
-      if (passes_hOverE && passes_sigmaIEtaIEta && passes_chIso && passes_neutIso) {
-        h_NMinus1_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
-        if (isTruthMatched) h_NMinus1_TruthMatched_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
-      }
+      // if (passes_sigmaIEtaIEta && passes_chIso && passes_neutIso && passes_phoIso) {
+      //   h_NMinus1_["hOverE"]->Fill(hOverE);
+      //   if (isTruthMatched) h_NMinus1_TruthMatched_["hOverE"]->Fill(hOverE);
+      // }
+      // if (passes_hOverE && passes_chIso && passes_neutIso && passes_phoIso) {
+      //   h_NMinus1_["sigmaIEtaIEta"]->Fill(sigmaIEtaIEta);
+      //   if (isTruthMatched) h_NMinus1_TruthMatched_["sigmaIEtaIEta"]->Fill(sigmaIEtaIEta);
+      // }
+      // if (passes_hOverE && passes_sigmaIEtaIEta && passes_neutIso && passes_phoIso) {
+      //   h_NMinus1_["chIso"]->Fill(rhoCorrectedChargedHadronIsolation);
+      //   if (isTruthMatched) h_NMinus1_TruthMatched_["chIso"]->Fill(rhoCorrectedChargedHadronIsolation);
+      // }
+      // if (passes_hOverE && passes_sigmaIEtaIEta && passes_chIso && passes_phoIso) {
+      //   h_NMinus1_["neutIso"]->Fill(rhoCorrectedNeutralHadronIsolation_scaled);
+      //   if (isTruthMatched) h_NMinus1_TruthMatched_["neutIso"]->Fill(rhoCorrectedNeutralHadronIsolation_scaled);
+      // }
+      // if (passes_hOverE && passes_sigmaIEtaIEta && passes_chIso && passes_neutIso) {
+      //   h_NMinus1_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
+      //   if (isTruthMatched) h_NMinus1_TruthMatched_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
+      // }
       if (passes_hOverE && passes_neutIso && passes_phoIso) {
         fillQueue_mediumFakeCriteria.push_back(std::make_pair(rhoCorrectedChargedHadronIsolation, sigmaIEtaIEta));
         if (isTruthMatched) fillQueue_mediumFakeCriteria_TruthMatched.push_back(std::make_pair(rhoCorrectedChargedHadronIsolation, sigmaIEtaIEta));
@@ -478,14 +464,14 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
 float
 MinimalMiniAODAnalyzer::getRhoCorrectedIsolation(const float& absEta, const PFTypeForEA& type, const float& isolation, const double& rho) {
   float EA = 0.;
-  if (absEta < 1.) EA = EAValues_barrelCenter_[type];
-  else if (absEta < 1.479) EA = EAValues_barrelEdge_[type];
+  if (absEta < 1.) EA = EAValues_barrelCenter_.at(type);
+  else if (absEta < 1.479) EA = EAValues_barrelEdge_.at(type);
   else {
     edm::LogError("MinimalMiniAODAnalyzer") << "Called for unsupported absEta = " << absEta;
     std::exit(EXIT_FAILURE);
   }
   float corrected = std::max(isolation - EA*(static_cast<float>(rho)), 0.0f);
-  if (verbosity_ >= 5) std::cout << "Called for absEta = " << absEta << ", type = " << PFTypeNames_[type] << ", rho = " << rho << ". Isolation values: raw = " << isolation << ", corrected: " << corrected << std::endl;
+  if (verbosity_ >= 5) std::cout << "Called for absEta = " << absEta << ", type = " << PFTypeNames_.at(type) << ", rho = " << rho << ". Isolation values: raw = " << isolation << ", corrected: " << corrected << std::endl;
   return corrected;
 }
 
@@ -543,9 +529,32 @@ MinimalMiniAODAnalyzer::getMinDeltaR(const float& eta, const float& phi, std::ve
 }
 
 void
+MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched) {
+  std::map<std::string, bool> otherCriteriaAreMet;
+  for (unsigned int criterionIndex = 0; criterionIndex < photonIDCriteria_.size(); ++criterionIndex) {
+    std::string& criterion = photonIDCriteria_.at(criterionIndex);
+    bool passesOtherRequirements = true;
+    for (unsigned int otherCriterionIndex = 0; otherCriterionIndex < photonIDCriteria_.size(); ++otherCriterionIndex) {
+      if (criterionIndex == otherCriterionIndex) continue;
+      std::string& otherCriterion = photonIDCriteria_.at(otherCriterionIndex);
+      if (!(photonIDBits.at(otherCriterion))) {
+        passesOtherRequirements = false;
+        break;
+      }
+    }
+    otherCriteriaAreMet[criterion] = passesOtherRequirements;
+  }
+  for (const std::string& criterion: photonIDCriteria_) {
+    if (otherCriteriaAreMet.at(criterion)) (h_NMinus1_.at(criterion))->Fill(photonProperties.at(criterion));
+    if (isTruthMatched) {
+      (h_global1D_TruthMatched_.at(criterion))->Fill(photonProperties.at(criterion));
+      if (otherCriteriaAreMet.at(criterion)) (h_NMinus1_TruthMatched_.at(criterion))->Fill(photonProperties.at(criterion));
+    }
+  }
+}
+
+void
 MinimalMiniAODAnalyzer::fillGlobal2DAndNMinus2Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties) {
-  checkMapKeysAgainstVector(photonIDBits, photonIDCriteria_);
-  checkMapKeysAgainstVector(photonProperties, photonIDCriteria_);
   for (unsigned int criterion1Index = 0; criterion1Index < (-1+photonIDCriteria_.size()); ++criterion1Index) {
     std::string& criterion1 = photonIDCriteria_.at(criterion1Index);
     for (unsigned int criterion2Index = (1+criterion1Index); criterion2Index < photonIDCriteria_.size(); ++criterion2Index) {
@@ -580,17 +589,6 @@ MinimalMiniAODAnalyzer::fillStepByStepHistograms(const std::map<std::string, boo
   }
 }
 
-// unsigned int
-// MinimalMiniAODAnalyzer::powint(const unsigned int& base, const unsigned int& exponent) {
-//   assert(base >= 1);
-//   assert(exponent >= 1);
-//   unsigned int result = 1;
-//   for (unsigned int counter = 0; counter < exponent; ++counter) {
-//     result *= base;
-//   }
-//   return result;
-// }
-
 template<typename valueType>
 void MinimalMiniAODAnalyzer::checkMapKeysAgainstVector(const std::map<std::string, valueType>& mapToCheck, const std::vector<std::string>& allowedValues) {
   assert(mapToCheck.size() == allowedValues.size());
@@ -598,28 +596,6 @@ void MinimalMiniAODAnalyzer::checkMapKeysAgainstVector(const std::map<std::strin
     assert(std::find(allowedValues.begin(), allowedValues.end(), mapElement.first) != allowedValues.end());
   }
 }
-
-// std::string
-// MinimalMiniAODAnalyzer::getTruthMatchedHistSuffix(const unsigned int& enableBits) {
-//   std::string name = "truthMatched_";
-//   std::bitset<photonIDCriteria_.size()> bits(enableBits);
-//   for (unsigned int bitIndex = 0; bitIndex < photonIDCriteria_.size(); ++bitIndex) {
-//     if (bits[bitIndex]) name += (photonIDCriteria_.at(bitIndex) + "_");
-//   }
-//   return name;
-// }
-
-// void
-// MinimalMiniAODAnalyzer::fillTruthMatchedHistograms(const std::map<std::string, bool> criterionPassed, const std::map<std::string, float> values) {
-//   // make bitset
-//   std::bitset<photonIDCriteria_.size()> criterionBits(0);
-//   for (const auto& criterionPassedInfo: criterionPassed) {
-//     criterionBits[(photonIDIndices_[criterionPassedInfo.first])] = criterionPassedInfo.second;
-//   }
-//   for (unsigned int enableBits = 0; enableBits < powint(2, photonIDCriteria_.size()); ++enableBits) {// e.g. with 5 bits, enableBits ranges from 0 = 00000 to 31 = 11111
-    
-//   }
-// }
 
 // ------------ method called once each job just before starting event loop  ------------
 void 
