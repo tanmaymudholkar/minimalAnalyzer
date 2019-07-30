@@ -401,8 +401,8 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       //   if (isTruthMatched) h_NMinus1_TruthMatched_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
       // }
       if (passes_hOverE && passes_neutIso && passes_phoIso) {
-        fillQueue_mediumFakeCriteria.push_back(std::make_pair(rhoCorrectedChargedHadronIsolation, sigmaIEtaIEta));
-        if (isTruthMatched) fillQueue_mediumFakeCriteria_TruthMatched.push_back(std::make_pair(rhoCorrectedChargedHadronIsolation, sigmaIEtaIEta));
+        fillQueue_mediumFakeCriteria.push_back(std::make_pair(sigmaIEtaIEta, rhoCorrectedChargedHadronIsolation));
+        if (isTruthMatched) fillQueue_mediumFakeCriteria_TruthMatched.push_back(std::make_pair(sigmaIEtaIEta, rhoCorrectedChargedHadronIsolation));
 
         if (passes_chIso && passes_sigmaIEtaIEta) {
           ++nMediumPhotons;
