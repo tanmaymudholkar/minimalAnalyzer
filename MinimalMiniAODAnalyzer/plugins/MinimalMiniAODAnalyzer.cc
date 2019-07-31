@@ -79,9 +79,15 @@ private:
   int desired_parent_pid_ = -1;
   std::vector<std::string> photonIDCriteria_ = {"hOverE", "sigmaIEtaIEta", "chIso", "neutIso", "phoIso"};
   std::vector<std::vector<std::string> > stepByStepSequences_ = {
-    {"hOverE", "sigmaIEtaIEta", "neutIso", "phoIso", "chIso"},
+    {"chIso", "hOverE", "sigmaIEtaIEta", "neutIso", "phoIso"},
+    {"hOverE", "chIso", "sigmaIEtaIEta", "neutIso", "phoIso"},
+    {"hOverE", "sigmaIEtaIEta", "chIso", "neutIso", "phoIso"},
     {"hOverE", "sigmaIEtaIEta", "neutIso", "chIso", "phoIso"},
-    {"chIso", "hOverE", "sigmaIEtaIEta", "neutIso", "phoIso"}
+    {"hOverE", "sigmaIEtaIEta", "neutIso", "phoIso", "chIso"},
+    {"chIso", "phoIso", "hOverE", "sigmaIEtaIEta", "neutIso"},
+    {"phoIso", "chIso", "hOverE", "sigmaIEtaIEta", "neutIso"},
+    {"hOverE", "sigmaIEtaIEta", "neutIso", "chIso", "phoIso"},
+    {"hOverE", "sigmaIEtaIEta", "neutIso", "phoIso", "chIso"}
   };
   std::map<std::string, int> nHistBins_ = {
     {"hOverE", 500},
