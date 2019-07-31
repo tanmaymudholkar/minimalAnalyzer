@@ -45,6 +45,7 @@
 #include "TMath.h"
 #include "TH1F.h"
 #include "TH2F.h"
+#include "TEfficiency.h"
 
 //
 // class declaration
@@ -113,12 +114,15 @@ private:
     {"upperLimit_phoET", 1000.}
   };
   std::map<std::string, int> miscParametersI_ = {
-    {"nBins_phoET", 1000}
+    {"nBins_phoET", 50}
   };
+  int binWidth_phoET_ = static_cast<int>(0.5+(((miscParametersF_.at("upperLimit_phoET"))-(miscParametersF_.at("lowerLimit_phoET")))/(miscParametersI_.at("nBins_phoET"))));
   std::map<std::string, TH1F*> h_global1D_TruthMatched_;
+  std::map<std::string, TEfficiency*> h_global1D_ETEfficiencies_TruthMatched_;
   std::map<unsigned int, std::map<unsigned int, TH1F*> > h_stepByStep_TruthMatched_; // Convention: h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]
   std::map<std::string, TH1F*> h_NMinus1_;
   std::map<std::string, TH1F*> h_NMinus1_TruthMatched_;
+  std::map<std::string, TEfficiency*> h_NMinus1_ETEfficiencies_TruthMatched_;
   std::map<std::string, std::map<std::string, TH2F*> > h_global2D_TruthMatched_;
   std::map<std::string, std::map<std::string, TH2F*> > h_NMinus2_TruthMatched_;
   TH1F* h_nMediumPhotons_;
@@ -134,6 +138,7 @@ private:
   TH1F* h_phoIso_raw_TruthMatched_;
   TH1F* h_phoET_TruthMatched_;
   TH1F* h_phoET_passingID_TruthMatched_;
+  TEfficiency* h_overallETEfficiency_TruthMatched_;
   TH2F* h_mediumFakeCriteria_;
   TH2F* h_mediumFakeCriteria_TruthMatched_;
   enum class PFTypeForEA{chargedHadron=0, neutralHadron, photon, nPFTypesForEA};
@@ -156,7 +161,7 @@ private:
   bool passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi);
   float get_deltaR(const float& source_eta, const float& source_phi, const float& target_eta, const float& target_phi);
   float getMinDeltaR(const float& eta, const float& phi, std::vector<std::pair<float, float> >& targetEtaPhiList);
-  void fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched);
+  void fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched, const float& ET);
   void fillGlobal2DAndNMinus2Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties);
   void fillStepByStepHistograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties);
   template<typename valueType> void checkMapKeysAgainstVector(const std::map<std::string, valueType>& mapToCheck, const std::vector<std::string>& allowedValues);
@@ -186,10 +191,12 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   for (const auto& criterion: photonIDCriteria_) {
     h_global1D_TruthMatched_[criterion] = new TH1F((criterion + "_global_TruthMatched").c_str(), (criterion + "_global_TruthMatched").c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
     h_global1D_TruthMatched_[criterion]->StatOverflows(kTRUE);
+    h_global1D_ETEfficiencies_TruthMatched_[criterion] = new TEfficiency((criterion + "_ETEfficiency_global_TruthMatched").c_str(), (criterion + "_ETEfficiency_global_TruthMatched;photon ET;#epsilon").c_str(), miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
     h_NMinus1_[criterion] = new TH1F((criterion + "_NMinus1").c_str(), (criterion + "_NMinus1").c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
     h_NMinus1_[criterion]->StatOverflows(kTRUE);
     h_NMinus1_TruthMatched_[criterion] = new TH1F((criterion + "_NMinus1_TruthMatched").c_str(), (criterion + "_NMinus1_TruthMatched").c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
     h_NMinus1_TruthMatched_[criterion]->StatOverflows(kTRUE);
+    h_NMinus1_ETEfficiencies_TruthMatched_[criterion] = new TEfficiency((criterion + "_ETEfficiency_NMinus1_TruthMatched").c_str(),(criterion + "_ETEfficiency_NMinus1_TruthMatched;photon ET;#epsilon").c_str(), miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
   }
   for (unsigned int criterion1Index = 0; criterion1Index < (-1+photonIDCriteria_.size()); ++criterion1Index) {
     std::string& criterion1 = photonIDCriteria_.at(criterion1Index);
@@ -250,8 +257,9 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_chIso_raw_TruthMatched_ = new TH1F("chIso_raw_TruthMatched", "chIso_raw_TruthMatched", nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
   h_neutIso_raw_TruthMatched_ = new TH1F("neutIso_raw_TruthMatched", "neutIso_raw_TruthMatched", nHistBins_.at("neutIso"), lowerHistLimits_.at("neutIso"), upperHistLimits_.at("neutIso"));
   h_phoIso_raw_TruthMatched_ = new TH1F("phoIso_raw_TruthMatched", "phoIso_raw_TruthMatched", nHistBins_.at("phoIso"), lowerHistLimits_.at("phoIso"), upperHistLimits_.at("phoIso"));
-  h_phoET_TruthMatched_ = new TH1F("phoET_TruthMatched", "phoET_TruthMatched", miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
-  h_phoET_passingID_TruthMatched_ = new TH1F("phoET_passingID_TruthMatched", "phoET_passingID_TruthMatched", miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
+  h_phoET_TruthMatched_ = new TH1F("phoET_TruthMatched", ("phoET_TruthMatched;photon ET;nEvents/(" + std::to_string(binWidth_phoET_) + " GeV)").c_str(), miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
+  h_phoET_passingID_TruthMatched_ = new TH1F("phoET_passingID_TruthMatched", ("phoET_passingID_TruthMatched;photon ET;nEvents/(" + std::to_string(binWidth_phoET_) + " GeV)").c_str(), miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
+  h_overallETEfficiency_TruthMatched_ = new TEfficiency("overallETEfficiency_TruthMatched", "overallETEfficiency_TruthMatched;photon ET;#epsilon", miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
   h_mediumFakeCriteria_ = new TH2F("mediumFakeCriteria", "ID criteria: (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
   h_mediumFakeCriteria_->StatOverflows(kTRUE);
   h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
@@ -276,10 +284,9 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
   for (const auto& criterion: photonIDCriteria_) {
     outputFile_->WriteTObject(h_NMinus1_[criterion]);
     outputFile_->WriteTObject(h_NMinus1_TruthMatched_[criterion]);
+    outputFile_->WriteTObject(h_NMinus1_ETEfficiencies_TruthMatched_[criterion]);
     outputFile_->WriteTObject(h_global1D_TruthMatched_[criterion]);
-    // for (unsigned int enableBits = 0; enableBits < powint(2, photonIDCriteria_.size()); ++enableBits) {// e.g. with 5 bits, enableBits ranges from 0 = 00000 to 31 = 11111
-    //   outputFile_->WriteTObject(h_truthMatched_all_[criterion][enableBits]);
-    // }
+    outputFile_->WriteTObject(h_global1D_ETEfficiencies_TruthMatched_[criterion]);
   }
   for (unsigned int criterion1Index = 0; criterion1Index < (-1+photonIDCriteria_.size()); ++criterion1Index) {
     std::string& criterion1 = photonIDCriteria_.at(criterion1Index);
@@ -309,6 +316,7 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
   outputFile_->WriteTObject(h_phoIso_raw_TruthMatched_);
   outputFile_->WriteTObject(h_phoET_TruthMatched_);
   outputFile_->WriteTObject(h_phoET_passingID_TruthMatched_);
+  outputFile_->WriteTObject(h_overallETEfficiency_TruthMatched_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_TruthMatched_);
   outputFile_->Close();
@@ -403,33 +411,14 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       photonProperties["phoIso"] = rhoCorrectedPhotonIsolation_scaled;
       checkMapKeysAgainstVector(photonIDBits, photonIDCriteria_);
       checkMapKeysAgainstVector(photonProperties, photonIDCriteria_);
-      fillGlobal1DAndNMinus1Histograms(photonIDBits, photonProperties, isTruthMatched);
+      fillGlobal1DAndNMinus1Histograms(photonIDBits, photonProperties, isTruthMatched, ET);
       if (isTruthMatched) {
         h_photonType_->Fill(5.0);
         h_phoET_TruthMatched_->Fill(ET);
         fillGlobal2DAndNMinus2Histograms(photonIDBits, photonProperties);
         fillStepByStepHistograms(photonIDBits, photonProperties);
+        h_overallETEfficiency_TruthMatched_->Fill(passes_hOverE && passes_neutIso && passes_phoIso && passes_chIso && passes_sigmaIEtaIEta, ET);
       }
-      // if (passes_sigmaIEtaIEta && passes_chIso && passes_neutIso && passes_phoIso) {
-      //   h_NMinus1_["hOverE"]->Fill(hOverE);
-      //   if (isTruthMatched) h_NMinus1_TruthMatched_["hOverE"]->Fill(hOverE);
-      // }
-      // if (passes_hOverE && passes_chIso && passes_neutIso && passes_phoIso) {
-      //   h_NMinus1_["sigmaIEtaIEta"]->Fill(sigmaIEtaIEta);
-      //   if (isTruthMatched) h_NMinus1_TruthMatched_["sigmaIEtaIEta"]->Fill(sigmaIEtaIEta);
-      // }
-      // if (passes_hOverE && passes_sigmaIEtaIEta && passes_neutIso && passes_phoIso) {
-      //   h_NMinus1_["chIso"]->Fill(rhoCorrectedChargedHadronIsolation);
-      //   if (isTruthMatched) h_NMinus1_TruthMatched_["chIso"]->Fill(rhoCorrectedChargedHadronIsolation);
-      // }
-      // if (passes_hOverE && passes_sigmaIEtaIEta && passes_chIso && passes_phoIso) {
-      //   h_NMinus1_["neutIso"]->Fill(rhoCorrectedNeutralHadronIsolation_scaled);
-      //   if (isTruthMatched) h_NMinus1_TruthMatched_["neutIso"]->Fill(rhoCorrectedNeutralHadronIsolation_scaled);
-      // }
-      // if (passes_hOverE && passes_sigmaIEtaIEta && passes_chIso && passes_neutIso) {
-      //   h_NMinus1_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
-      //   if (isTruthMatched) h_NMinus1_TruthMatched_["phoIso"]->Fill(rhoCorrectedPhotonIsolation_scaled);
-      // }
       if (passes_hOverE && passes_neutIso && passes_phoIso) {
         fillQueue_mediumFakeCriteria.push_back(std::make_pair(sigmaIEtaIEta, rhoCorrectedChargedHadronIsolation));
         if (isTruthMatched) fillQueue_mediumFakeCriteria_TruthMatched.push_back(std::make_pair(sigmaIEtaIEta, rhoCorrectedChargedHadronIsolation));
@@ -560,7 +549,7 @@ MinimalMiniAODAnalyzer::getMinDeltaR(const float& eta, const float& phi, std::ve
 }
 
 void
-MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched) {
+MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched, const float& ET) {
   std::map<std::string, bool> otherCriteriaAreMet;
   for (unsigned int criterionIndex = 0; criterionIndex < photonIDCriteria_.size(); ++criterionIndex) {
     std::string& criterion = photonIDCriteria_.at(criterionIndex);
@@ -579,7 +568,11 @@ MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1Histograms(const std::map<std::str
     if (otherCriteriaAreMet.at(criterion)) (h_NMinus1_.at(criterion))->Fill(photonProperties.at(criterion));
     if (isTruthMatched) {
       (h_global1D_TruthMatched_.at(criterion))->Fill(photonProperties.at(criterion));
-      if (otherCriteriaAreMet.at(criterion)) (h_NMinus1_TruthMatched_.at(criterion))->Fill(photonProperties.at(criterion));
+      (h_global1D_ETEfficiencies_TruthMatched_.at(criterion))->Fill(photonIDBits.at(criterion), ET);
+      if (otherCriteriaAreMet.at(criterion)) {
+        (h_NMinus1_TruthMatched_.at(criterion))->Fill(photonProperties.at(criterion));
+        (h_NMinus1_ETEfficiencies_TruthMatched_.at(criterion))->Fill(photonIDBits.at(criterion), ET);
+      }
     }
   }
 }
