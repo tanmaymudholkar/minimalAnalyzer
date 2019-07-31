@@ -108,6 +108,13 @@ private:
     {"neutIso", 10.},
     {"phoIso", 10.}
   };
+  std::map<std::string, float> miscParametersF_ = {
+    {"lowerLimit_phoET", 0.},
+    {"upperLimit_phoET", 1000.}
+  };
+  std::map<std::string, int> miscParametersI_ = {
+    {"nBins_phoET", 1000}
+  };
   std::map<std::string, TH1F*> h_global1D_TruthMatched_;
   std::map<unsigned int, std::map<unsigned int, TH1F*> > h_stepByStep_TruthMatched_; // Convention: h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]
   std::map<std::string, TH1F*> h_NMinus1_;
@@ -125,6 +132,8 @@ private:
   TH1F* h_chIso_raw_TruthMatched_;
   TH1F* h_neutIso_raw_TruthMatched_;
   TH1F* h_phoIso_raw_TruthMatched_;
+  TH1F* h_phoET_TruthMatched_;
+  TH1F* h_phoET_passingID_TruthMatched_;
   TH2F* h_mediumFakeCriteria_;
   TH2F* h_mediumFakeCriteria_TruthMatched_;
   enum class PFTypeForEA{chargedHadron=0, neutralHadron, photon, nPFTypesForEA};
@@ -241,6 +250,8 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_chIso_raw_TruthMatched_ = new TH1F("chIso_raw_TruthMatched", "chIso_raw_TruthMatched", nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
   h_neutIso_raw_TruthMatched_ = new TH1F("neutIso_raw_TruthMatched", "neutIso_raw_TruthMatched", nHistBins_.at("neutIso"), lowerHistLimits_.at("neutIso"), upperHistLimits_.at("neutIso"));
   h_phoIso_raw_TruthMatched_ = new TH1F("phoIso_raw_TruthMatched", "phoIso_raw_TruthMatched", nHistBins_.at("phoIso"), lowerHistLimits_.at("phoIso"), upperHistLimits_.at("phoIso"));
+  h_phoET_TruthMatched_ = new TH1F("phoET_TruthMatched", "phoET_TruthMatched", miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
+  h_phoET_passingID_TruthMatched_ = new TH1F("phoET_passingID_TruthMatched", "phoET_passingID_TruthMatched", miscParametersI_.at("nBins_phoET"), miscParametersF_.at("lowerLimit_phoET"), miscParametersF_.at("upperLimit_phoET"));
   h_mediumFakeCriteria_ = new TH2F("mediumFakeCriteria", "ID criteria: (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
   h_mediumFakeCriteria_->StatOverflows(kTRUE);
   h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
@@ -296,6 +307,8 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
   outputFile_->WriteTObject(h_chIso_raw_TruthMatched_);
   outputFile_->WriteTObject(h_neutIso_raw_TruthMatched_);
   outputFile_->WriteTObject(h_phoIso_raw_TruthMatched_);
+  outputFile_->WriteTObject(h_phoET_TruthMatched_);
+  outputFile_->WriteTObject(h_phoET_passingID_TruthMatched_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_TruthMatched_);
   outputFile_->Close();
@@ -393,6 +406,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       fillGlobal1DAndNMinus1Histograms(photonIDBits, photonProperties, isTruthMatched);
       if (isTruthMatched) {
         h_photonType_->Fill(5.0);
+        h_phoET_TruthMatched_->Fill(ET);
         fillGlobal2DAndNMinus2Histograms(photonIDBits, photonProperties);
         fillStepByStepHistograms(photonIDBits, photonProperties);
       }
@@ -426,6 +440,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
           if (isTruthMatched) {
             ++nMediumPhotons_TruthMatched;
             h_photonType_->Fill(2.0);
+            h_phoET_passingID_TruthMatched_->Fill(ET);
           }
         }
         else if (passes_chIso_loose && passes_sigmaIEtaIEta_loose) {
