@@ -118,6 +118,9 @@ private:
   TH1F* h_photonType_;
   TH1F* h_nPU_;
   TH1F* h_rho_;
+  TH1F* h_chIso_raw_TruthMatched_;
+  TH1F* h_neutIso_raw_TruthMatched_;
+  TH1F* h_phoIso_raw_TruthMatched_;
   TH2F* h_mediumFakeCriteria_;
   TH2F* h_mediumFakeCriteria_TruthMatched_;
   enum class PFTypeForEA{chargedHadron=0, neutralHadron, photon, nPFTypesForEA};
@@ -231,6 +234,9 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_nPU_->StatOverflows(kTRUE);
   h_rho_ = new TH1F("rho", "rho", 500, 0., 100.);
   h_rho_->StatOverflows(kTRUE);
+  h_chIso_raw_TruthMatched_ = new TH1F("chIso_raw_TruthMatched", "chIso_raw_TruthMatched", nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
+  h_neutIso_raw_TruthMatched_ = new TH1F("neutIso_raw_TruthMatched", "neutIso_raw_TruthMatched", nHistBins_.at("neutIso"), lowerHistLimits_.at("neutIso"), upperHistLimits_.at("neutIso"));
+  h_phoIso_raw_TruthMatched_ = new TH1F("phoIso_raw_TruthMatched", "phoIso_raw_TruthMatched", nHistBins_.at("phoIso"), lowerHistLimits_.at("phoIso"), upperHistLimits_.at("phoIso"));
   h_mediumFakeCriteria_ = new TH2F("mediumFakeCriteria", "ID criteria: (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
   h_mediumFakeCriteria_->StatOverflows(kTRUE);
   h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
@@ -283,6 +289,9 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
   outputFile_->WriteTObject(h_photonType_);
   outputFile_->WriteTObject(h_nPU_);
   outputFile_->WriteTObject(h_rho_);
+  outputFile_->WriteTObject(h_chIso_raw_TruthMatched_);
+  outputFile_->WriteTObject(h_neutIso_raw_TruthMatched_);
+  outputFile_->WriteTObject(h_phoIso_raw_TruthMatched_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_TruthMatched_);
   outputFile_->Close();
@@ -349,14 +358,17 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       bool passes_sigmaIEtaIEta = (sigmaIEtaIEta < 0.01015);
       bool passes_sigmaIEtaIEta_loose = (sigmaIEtaIEta < 0.02);
       float chargedHadronIsolation = iPho->userFloat("phoChargedIsolation");
+      if (isTruthMatched) h_chIso_raw_TruthMatched_->Fill(chargedHadronIsolation);
       float rhoCorrectedChargedHadronIsolation = getRhoCorrectedIsolation(absEta, PFTypeForEA::chargedHadron, chargedHadronIsolation, rho);
       bool passes_chIso = (rhoCorrectedChargedHadronIsolation < 1.141);
       bool passes_chIso_loose = (rhoCorrectedChargedHadronIsolation < 6.0);
       float neutralHadronIsolation = iPho->userFloat("phoNeutralHadronIsolation");
+      if (isTruthMatched) h_neutIso_raw_TruthMatched_->Fill(neutralHadronIsolation/(1.189 + 0.01512*ET + 0.00002259*ET*ET));
       float rhoCorrectedNeutralHadronIsolation = getRhoCorrectedIsolation(absEta, PFTypeForEA::neutralHadron, neutralHadronIsolation, rho);
       float rhoCorrectedNeutralHadronIsolation_scaled = rhoCorrectedNeutralHadronIsolation/(1.189 + 0.01512*ET + 0.00002259*ET*ET);
       bool passes_neutIso = (rhoCorrectedNeutralHadronIsolation_scaled < 1.0);
       float photonIsolation = iPho->userFloat("phoPhotonIsolation");
+      if (isTruthMatched) h_phoIso_raw_TruthMatched_->Fill(photonIsolation/(2.08 + 0.004017*ET));
       float rhoCorrectedPhotonIsolation = getRhoCorrectedIsolation(absEta, PFTypeForEA::photon, photonIsolation, rho);
       float rhoCorrectedPhotonIsolation_scaled = rhoCorrectedPhotonIsolation/(2.08 + 0.004017*ET);
       bool passes_phoIso = (rhoCorrectedPhotonIsolation_scaled < 1.0);
