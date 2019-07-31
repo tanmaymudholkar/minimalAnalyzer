@@ -85,9 +85,7 @@ private:
     {"hOverE", "sigmaIEtaIEta", "neutIso", "chIso", "phoIso"},
     {"hOverE", "sigmaIEtaIEta", "neutIso", "phoIso", "chIso"},
     {"chIso", "phoIso", "hOverE", "sigmaIEtaIEta", "neutIso"},
-    {"phoIso", "chIso", "hOverE", "sigmaIEtaIEta", "neutIso"},
-    {"hOverE", "sigmaIEtaIEta", "neutIso", "chIso", "phoIso"},
-    {"hOverE", "sigmaIEtaIEta", "neutIso", "phoIso", "chIso"}
+    {"phoIso", "chIso", "hOverE", "sigmaIEtaIEta", "neutIso"}
   };
   std::map<std::string, int> nHistBins_ = {
     {"hOverE", 500},
