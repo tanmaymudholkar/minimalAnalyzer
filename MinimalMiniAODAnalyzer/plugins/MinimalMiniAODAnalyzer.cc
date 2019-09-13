@@ -39,6 +39,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "DataFormats/PatCandidates/interface/Photon.h"
+#include "DataFormats/PatCandidates/interface/Jet.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
 #include "TFile.h"
@@ -73,6 +74,7 @@ private:
   edm::EDGetTokenT<edm::View<pat::Photon> > photonCollection_;
   edm::EDGetTokenT<std::vector<reco::GenParticle> > genParticlesCollection_;
   edm::EDGetTokenT<std::vector<PileupSummaryInfo> > pileupSummaryToken_;
+  edm::EDGetTokenT<edm::View<pat::Jet> > jetCollection_;
   std::string outputPath_;
   TFile *outputFile_;
   int verbosity_;
@@ -192,6 +194,11 @@ private:
     {PFTypeForEA::neutralHadron, 0.1054},
     {PFTypeForEA::photon, 0.0953}
   };
+  TH1F* h_nHighPTJets_;
+  TH1F* h_jetChargedEMEnergyFraction;
+  TH1F* h_jetNeutralEMEnergyFraction;
+  TH1F* h_jetEMEnergyFraction;
+  TH1F* h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet;
   float getRhoCorrectedIsolation(const float& absEta, const PFTypeForEA& type, const float& isolation, const double& rho);
   bool passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi);
   float get_deltaR(const float& source_eta, const float& source_phi, const float& target_eta, const float& target_phi);
@@ -317,6 +324,11 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_mediumFakeCriteria_->StatOverflows(kTRUE);
   h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
   h_mediumFakeCriteria_TruthMatched_->StatOverflows(kTRUE);
+  h_nHighPTJets_ = new TH1F("nHighPTJets", "nHighPTJets;nJets (PT > 30);",21,-0.5,20.5);
+  h_jetChargedEMEnergyFraction = new TH1F("jetChargedEMEnergyFraction", "chargedEMEnergyFraction;chargedEMEnergyFraction;", 2000, 0., 1.);
+  h_jetNeutralEMEnergyFraction = new TH1F("jetNeutralEMEnergyFraction", "neutralEMEnergyFraction;neutralEMEnergyFraction;", 2000, 0., 1.);
+  h_jetEMEnergyFraction = new TH1F("jetEMEnergyFraction", "jetEMEnergyFraction;jetEMEnergyFraction;", 2000, 0., 1.);
+  h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet = new TH1F("deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", "deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", 500, 0., 2.5);
   outputPath_ = iConfig.getUntrackedParameter<std::string>("outputPath");
   outputFile_ = new TFile(outputPath_.c_str(), "RECREATE");
   verbosity_ = iConfig.getUntrackedParameter<int>("verbosity");
@@ -325,6 +337,7 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   else if (filterType_ == "hgg") desired_parent_pid_ = 25;
   rhoLabel_ = consumes<double>(iConfig.getParameter<edm::InputTag>("rhoLabel"));
   photonCollection_ = consumes<edm::View<pat::Photon> >(iConfig.getParameter<edm::InputTag>("photonSrc"));
+  jetCollection_ = consumes<edm::View<pat::Jet> > (iConfig.getParameter<edm::InputTag>("jetSrc"));
   genParticlesCollection_ = consumes<std::vector<reco::GenParticle> >(iConfig.getParameter<edm::InputTag>("genParticleSrc"));
   pileupSummaryToken_ = consumes<std::vector<PileupSummaryInfo> >(iConfig.getParameter<edm::InputTag>("pileupSummary"));
 }
@@ -377,6 +390,11 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
   outputFile_->WriteTObject(h_overallETEfficiency_TruthMatched_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_TruthMatched_);
+  outputFile_->WriteTObject(h_nHighPTJets_);
+  outputFile_->WriteTObject(h_jetChargedEMEnergyFraction);
+  outputFile_->WriteTObject(h_jetNeutralEMEnergyFraction);
+  outputFile_->WriteTObject(h_jetEMEnergyFraction);
+  outputFile_->WriteTObject(h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet);
   outputFile_->Close();
 }
 
@@ -614,6 +632,39 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       h_mediumFakeCriteria_TruthMatched_->Fill(valuePair.first, valuePair.second);
     }
   }
+
+  edm::Handle<edm::View<pat::Jet> > jetHandle;
+  iEvent.getByToken(jetCollection_, jetHandle);
+
+  if (!jetHandle.isValid()) {
+    edm::LogWarning("ggNtuplizer") << "no pat::Jets (AK4) in event";
+    return;
+  }
+
+  int nHighPTJets = 0;
+  std::vector<std::pair<float, float> > lowNeutralEMFractionRecoJetEtaPhis;
+  for (edm::View<pat::Jet>::const_iterator iJet = jetHandle->begin(); iJet != jetHandle->end(); ++iJet) {
+    float jetPT = iJet->pt();
+    if (jetPT > 30.) {
+      ++nHighPTJets;
+      float jetEta = iJet->eta();
+      float jetPhi = iJet->phi();
+      float chargedEMFraction = iJet->chargedEmEnergyFraction();
+      h_jetChargedEMEnergyFraction->Fill(chargedEMFraction);
+      float neutralEMFraction = iJet->neutralEmEnergyFraction();
+      h_jetNeutralEMEnergyFraction->Fill(neutralEMFraction);
+      h_jetEMEnergyFraction->Fill(iJet->userFloat("caloJetMap:emEnergyFraction"));
+      if (neutralEMFraction < 0.65) lowNeutralEMFractionRecoJetEtaPhis.push_back(std::make_pair(jetEta, jetPhi));
+    }
+  }
+  for (const std::pair<float, float>& truthPhotonEtaPhi: truthPhotonsEtaPhi) {
+    const float& truthPhotonEta = truthPhotonEtaPhi.first;
+    const float& truthPhotonPhi = truthPhotonEtaPhi.second;
+    if (truthPhotonEta < 1.442) {
+      h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet->Fill(getMinDeltaR(truthPhotonEta, truthPhotonPhi, lowNeutralEMFractionRecoJetEtaPhis));
+    }
+  }
+  h_nHighPTJets_->Fill(1.0*nHighPTJets);
 
 #ifdef THIS_IS_AN_EVENT_EXAMPLE
   Handle<ExampleData> pIn;
