@@ -195,9 +195,14 @@ private:
     {PFTypeForEA::photon, 0.0953}
   };
   TH1F* h_nHighPTJets_;
-  TH1F* h_jetChargedEMEnergyFraction;
-  TH1F* h_jetNeutralEMEnergyFraction;
-  TH1F* h_jetEMEnergyFraction;
+  TH1F* h_nHighPTJets_TruthMatched_;
+  TH1F* h_jetEMEnergyFraction_;
+  TH1F* h_jetChargedEMEnergyFraction_;
+  TH1F* h_jetNeutralEMEnergyFraction_;
+  TH1F* h_jetChargedHadronEnergyFraction_;
+  TH1F* h_jetNeutralHadronEnergyFraction_;
+  TH1F* h_jetChargedMultiplicity_;
+  TH1F* h_jetNeutralMultiplicity_;
   TH1F* h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet;
   float getRhoCorrectedIsolation(const float& absEta, const PFTypeForEA& type, const float& isolation, const double& rho);
   bool passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi);
@@ -325,9 +330,14 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
   h_mediumFakeCriteria_TruthMatched_->StatOverflows(kTRUE);
   h_nHighPTJets_ = new TH1F("nHighPTJets", "nHighPTJets;nJets (PT > 30);",21,-0.5,20.5);
-  h_jetChargedEMEnergyFraction = new TH1F("jetChargedEMEnergyFraction", "chargedEMEnergyFraction;chargedEMEnergyFraction;", 2000, 0., 1.);
-  h_jetNeutralEMEnergyFraction = new TH1F("jetNeutralEMEnergyFraction", "neutralEMEnergyFraction;neutralEMEnergyFraction;", 2000, 0., 1.);
-  h_jetEMEnergyFraction = new TH1F("jetEMEnergyFraction", "jetEMEnergyFraction;jetEMEnergyFraction;", 2000, 0., 1.);
+  h_nHighPTJets_TruthMatched_ = new TH1F("nHighPTJets_TruthMatched", "nHighPTJets;nJets (truth-matched) (PT > 30);",21,-0.5,20.5);
+  h_jetEMEnergyFraction_ = new TH1F("jetEMEnergyFraction", "jetEMEnergyFraction;jetEMEnergyFraction;", 2040, -0.01, 1.01);
+  h_jetChargedEMEnergyFraction_ = new TH1F("jetChargedEMEnergyFraction", "chargedEMEnergyFraction;chargedEMEnergyFraction;", 2040, -0.01, 1.01);
+  h_jetNeutralEMEnergyFraction_ = new TH1F("jetNeutralEMEnergyFraction", "neutralEMEnergyFraction;neutralEMEnergyFraction;", 2040, -0.01, 1.01);
+  h_jetChargedHadronEnergyFraction_ = new TH1F("jetChargedHadronEnergyFraction", "chargedHadronEnergyFraction;chargedHadronEnergyFraction;", 2040, -0.01, 1.01);
+  h_jetNeutralHadronEnergyFraction_ = new TH1F("jetNeutralHadronEnergyFraction", "neutralHadronEnergyFraction;neutralHadronEnergyFraction;", 2040, -0.01, 1.01);
+  h_jetChargedMultiplicity_ = new TH1F("jetChargedMultiplicity", "chargedMultiplicity;charged multiplicity;", 500, -0.5, 499.5);
+  h_jetNeutralMultiplicity_ = new TH1F("jetNeutralMultiplicity", "neutralMultiplicity;neutral multiplicity;", 500, -0.5, 499.5);
   h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet = new TH1F("deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", "deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", 500, 0., 2.5);
   outputPath_ = iConfig.getUntrackedParameter<std::string>("outputPath");
   outputFile_ = new TFile(outputPath_.c_str(), "RECREATE");
@@ -341,7 +351,6 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   genParticlesCollection_ = consumes<std::vector<reco::GenParticle> >(iConfig.getParameter<edm::InputTag>("genParticleSrc"));
   pileupSummaryToken_ = consumes<std::vector<PileupSummaryInfo> >(iConfig.getParameter<edm::InputTag>("pileupSummary"));
 }
-
 
 MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
 {
@@ -391,13 +400,17 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
   outputFile_->WriteTObject(h_mediumFakeCriteria_);
   outputFile_->WriteTObject(h_mediumFakeCriteria_TruthMatched_);
   outputFile_->WriteTObject(h_nHighPTJets_);
-  outputFile_->WriteTObject(h_jetChargedEMEnergyFraction);
-  outputFile_->WriteTObject(h_jetNeutralEMEnergyFraction);
-  outputFile_->WriteTObject(h_jetEMEnergyFraction);
+  outputFile_->WriteTObject(h_nHighPTJets_TruthMatched_);
+  outputFile_->WriteTObject(h_jetEMEnergyFraction_);
+  outputFile_->WriteTObject(h_jetChargedEMEnergyFraction_);
+  outputFile_->WriteTObject(h_jetNeutralEMEnergyFraction_);
+  outputFile_->WriteTObject(h_jetChargedHadronEnergyFraction_);
+  outputFile_->WriteTObject(h_jetNeutralHadronEnergyFraction_);
+  outputFile_->WriteTObject(h_jetChargedMultiplicity_);
+  outputFile_->WriteTObject(h_jetNeutralMultiplicity_);
   outputFile_->WriteTObject(h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet);
   outputFile_->Close();
 }
-
 
 //
 // member functions
@@ -483,7 +496,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       float clusIso_scaled_for_leading = (iPho->ecalPFClusterIso())/(6.0 + 0.012*ET + rho*0.29);
       float clusIso_scaled_for_subLeading = (iPho->ecalPFClusterIso())/(6.0 + 0.012*ET + rho*0.16544);
       float trkIso_scaled = (iPho->trkSumPtHollowConeDR03())/(6.0 + 0.002*ET);
-      
+
       std::map<std::string, bool> photonIDBits;
       std::map<std::string, float> photonProperties;
       photonIDBits["hOverE"] = passes_hOverE;
@@ -642,18 +655,30 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   }
 
   int nHighPTJets = 0;
+  int nHighPTJets_TruthMatched = 0;
   std::vector<std::pair<float, float> > lowNeutralEMFractionRecoJetEtaPhis;
   for (edm::View<pat::Jet>::const_iterator iJet = jetHandle->begin(); iJet != jetHandle->end(); ++iJet) {
     float jetPT = iJet->pt();
-    if (jetPT > 30.) {
+    float jetEta = iJet->eta();
+    if ((jetPT > 30.) && (std::fabs(jetEta) < 2.4)) {
       ++nHighPTJets;
-      float jetEta = iJet->eta();
       float jetPhi = iJet->phi();
+      float deltaRToTruePhoton = getMinDeltaR(jetEta, jetPhi, truthPhotonsEtaPhi);
+      if (deltaRToTruePhoton > 0.4) continue; // should ordinarily be commented out; otherwise, this condition creates histograms only for those jets that are close to true photons, useful mostly for studies in which we want to look at jets that come from photons
+      ++nHighPTJets_TruthMatched;
       float chargedEMFraction = iJet->chargedEmEnergyFraction();
-      h_jetChargedEMEnergyFraction->Fill(chargedEMFraction);
+      h_jetChargedEMEnergyFraction_->Fill(chargedEMFraction);
       float neutralEMFraction = iJet->neutralEmEnergyFraction();
-      h_jetNeutralEMEnergyFraction->Fill(neutralEMFraction);
-      h_jetEMEnergyFraction->Fill(iJet->userFloat("caloJetMap:emEnergyFraction"));
+      h_jetNeutralEMEnergyFraction_->Fill(neutralEMFraction);
+      float emFraction = iJet->userFloat("caloJetMap:emEnergyFraction");
+      h_jetEMEnergyFraction_->Fill(emFraction);
+      // std::cout << "For one high-PT jet, charged EM fraction = " << chargedEMFraction << ", neutralEMFraction = " << neutralEMFraction << ", overallEMFraction = " << emFraction << ", eta = " << jetEta << ", phi = " << jetPhi << std::endl;
+      float chargedHadronFraction = iJet->chargedHadronEnergyFraction();
+      h_jetChargedHadronEnergyFraction_->Fill(chargedHadronFraction);
+      float neutralHadronFraction = iJet->neutralHadronEnergyFraction();
+      h_jetNeutralHadronEnergyFraction_->Fill(neutralHadronFraction);
+      h_jetChargedMultiplicity_->Fill(iJet->chargedMultiplicity());
+      h_jetNeutralMultiplicity_->Fill(iJet->neutralMultiplicity());
       if (neutralEMFraction < 0.65) lowNeutralEMFractionRecoJetEtaPhis.push_back(std::make_pair(jetEta, jetPhi));
     }
   }
@@ -665,6 +690,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     }
   }
   h_nHighPTJets_->Fill(1.0*nHighPTJets);
+  h_nHighPTJets_TruthMatched_->Fill(1.0*nHighPTJets_TruthMatched);
 
 #ifdef THIS_IS_AN_EVENT_EXAMPLE
   Handle<ExampleData> pIn;
