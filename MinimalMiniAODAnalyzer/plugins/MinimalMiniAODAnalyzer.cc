@@ -80,6 +80,8 @@ private:
   int verbosity_;
   std::string filterType_;
   int desired_parent_pid_ = -1;
+  bool selectJetsNearPhotons_ = false;
+  bool selectJetsAwayFromPhotons_ = false;
   std::vector<std::string> photonIDCriteria_ = {"hOverE", "sigmaIEtaIEta", "chIso", "neutIso", "phoIso"};
   std::vector<std::vector<std::string> > stepByStepSequences_ = {
     {"chIso", "hOverE", "sigmaIEtaIEta", "neutIso", "phoIso"},
@@ -338,13 +340,15 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_jetNeutralHadronEnergyFraction_ = new TH1F("jetNeutralHadronEnergyFraction", "neutralHadronEnergyFraction;neutralHadronEnergyFraction;", 2040, -0.01, 1.01);
   h_jetChargedMultiplicity_ = new TH1F("jetChargedMultiplicity", "chargedMultiplicity;charged multiplicity;", 500, -0.5, 499.5);
   h_jetNeutralMultiplicity_ = new TH1F("jetNeutralMultiplicity", "neutralMultiplicity;neutral multiplicity;", 500, -0.5, 499.5);
-  h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet = new TH1F("deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", "deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", 500, 0., 2.5);
+  h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet = new TH1F("deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", "deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", 1000, -0.01, 6.29);
   outputPath_ = iConfig.getUntrackedParameter<std::string>("outputPath");
   outputFile_ = new TFile(outputPath_.c_str(), "RECREATE");
   verbosity_ = iConfig.getUntrackedParameter<int>("verbosity");
   filterType_ = iConfig.getUntrackedParameter<std::string>("filterType");
   if (filterType_ == "stealth") desired_parent_pid_ = 1000022;
   else if (filterType_ == "hgg") desired_parent_pid_ = 25;
+  selectJetsNearPhotons_ = iConfig.getUntrackedParameter<bool>("selectJetsNearPhotons");
+  selectJetsAwayFromPhotons_ = iConfig.getUntrackedParameter<bool>("selectJetsAwayFromPhotons");
   rhoLabel_ = consumes<double>(iConfig.getParameter<edm::InputTag>("rhoLabel"));
   photonCollection_ = consumes<edm::View<pat::Photon> >(iConfig.getParameter<edm::InputTag>("photonSrc"));
   jetCollection_ = consumes<edm::View<pat::Jet> > (iConfig.getParameter<edm::InputTag>("jetSrc"));
@@ -664,7 +668,13 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       ++nHighPTJets;
       float jetPhi = iJet->phi();
       float deltaRToTruePhoton = getMinDeltaR(jetEta, jetPhi, truthPhotonsEtaPhi);
-      if (deltaRToTruePhoton > 0.4) continue; // should ordinarily be commented out; otherwise, this condition creates histograms only for those jets that are close to true photons, useful mostly for studies in which we want to look at jets that come from photons
+      if (deltaRToTruePhoton < 0.) continue;
+      if (selectJetsNearPhotons_) {
+	if (deltaRToTruePhoton > 0.4) continue; // this condition creates histograms only for those jets that are close to true photons, useful mostly for studies in which we want to look at jets that come from photons
+      }
+      if (selectJetsAwayFromPhotons_) {
+	if (deltaRToTruePhoton < 0.4) continue; // this condition creates histograms only for those jets that are away from true photons, useful mostly for studies in which we want to look at jets that don't come from photons
+      }
       ++nHighPTJets_TruthMatched;
       float chargedEMFraction = iJet->chargedEmEnergyFraction();
       h_jetChargedEMEnergyFraction_->Fill(chargedEMFraction);
@@ -679,14 +689,16 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       h_jetNeutralHadronEnergyFraction_->Fill(neutralHadronFraction);
       h_jetChargedMultiplicity_->Fill(iJet->chargedMultiplicity());
       h_jetNeutralMultiplicity_->Fill(iJet->neutralMultiplicity());
-      if (neutralEMFraction < 0.65) lowNeutralEMFractionRecoJetEtaPhis.push_back(std::make_pair(jetEta, jetPhi));
+      if (neutralEMFraction < 0.4) lowNeutralEMFractionRecoJetEtaPhis.push_back(std::make_pair(jetEta, jetPhi));
     }
   }
   for (const std::pair<float, float>& truthPhotonEtaPhi: truthPhotonsEtaPhi) {
     const float& truthPhotonEta = truthPhotonEtaPhi.first;
     const float& truthPhotonPhi = truthPhotonEtaPhi.second;
     if (truthPhotonEta < 1.442) {
-      h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet->Fill(getMinDeltaR(truthPhotonEta, truthPhotonPhi, lowNeutralEMFractionRecoJetEtaPhis));
+      float deltaRMin = getMinDeltaR(truthPhotonEta, truthPhotonPhi, lowNeutralEMFractionRecoJetEtaPhis);
+      if (deltaRMin < 0.) continue;
+      h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet->Fill(deltaRMin);
     }
   }
   h_nHighPTJets_->Fill(1.0*nHighPTJets);

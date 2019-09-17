@@ -8,5 +8,7 @@ minimalAnalyzer = cms.EDAnalyzer('MinimalMiniAODAnalyzer',
                                  outputPath = cms.untracked.string("output.root"),
                                  verbosity = cms.untracked.int32(0),
                                  filterType = cms.untracked.string("none"),
-                                 pileupSummary = cms.InputTag("slimmedAddPileupInfo")
+                                 pileupSummary = cms.InputTag("slimmedAddPileupInfo"),
+                                 selectJetsNearPhotons = cms.untracked.bool(False),
+                                 selectJetsAwayFromPhotons = cms.untracked.bool(False)
 )
