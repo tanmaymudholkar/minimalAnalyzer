@@ -48,6 +48,8 @@
 #include "TH2F.h"
 #include "TEfficiency.h"
 
+#include "constants.h"
+
 //
 // class declaration
 //
@@ -81,77 +83,7 @@ private:
   std::string filterType_;
   int desired_parent_pid_ = -1;
   bool selectJetsNearPhotons_ = false;
-  bool selectJetsAwayFromPhotons_ = false;
-  std::vector<std::string> photonIDCriteria_ = {"hOverE", "sigmaIEtaIEta", "chIso", "neutIso", "phoIso"};
-  std::vector<std::vector<std::string> > stepByStepSequences_ = {
-    {"chIso", "hOverE", "sigmaIEtaIEta", "neutIso", "phoIso"},
-    {"hOverE", "chIso", "sigmaIEtaIEta", "neutIso", "phoIso"},
-    {"hOverE", "sigmaIEtaIEta", "chIso", "neutIso", "phoIso"},
-    {"hOverE", "sigmaIEtaIEta", "neutIso", "chIso", "phoIso"},
-    {"hOverE", "sigmaIEtaIEta", "neutIso", "phoIso", "chIso"},
-    {"chIso", "phoIso", "hOverE", "sigmaIEtaIEta", "neutIso"},
-    {"phoIso", "chIso", "hOverE", "sigmaIEtaIEta", "neutIso"}
-  };
-  std::map<std::string, int> nHistBins_ = {
-    {"hOverE", 500},
-    {"sigmaIEtaIEta", 500},
-    {"chIso", 1000},
-    {"neutIso", 500},
-    {"phoIso", 500}
-  };
-  std::map<std::string, float> lowerHistLimits_ = {
-    {"hOverE", 0.},
-    {"sigmaIEtaIEta", 0.},
-    {"chIso", 0.},
-    {"neutIso", 0.},
-    {"phoIso", 0.}
-  };
-  std::map<std::string, float> upperHistLimits_ = {
-    {"hOverE", 0.2},
-    {"sigmaIEtaIEta", 0.025},
-    {"chIso", 60.},
-    {"neutIso", 10.},
-    {"phoIso", 10.}
-  };
-
-  std::map<std::string, int> nHistBins_HLT_ = {
-    {"R9_leading", 500},
-    {"hOverE_leading", 500},
-    {"sigmaIEtaIEta_leading", 500},
-    {"clusIso_leading", 1000},
-    {"trkIso_leading", 500},
-    {"R9_subLeading", 500},
-    {"hOverE_subLeading", 500},
-    {"sigmaIEtaIEta_subLeading", 500},
-    {"clusIso_subLeading", 1000},
-    {"trkIso_subLeading", 500}
-  };
-  std::map<std::string, float> lowerHistLimits_HLT_ = {
-    {"R9_leading", 0.},
-    {"hOverE_leading", 0.},
-    {"sigmaIEtaIEta_leading", 0.},
-    {"clusIso_leading", 0.},
-    {"trkIso_leading", 0.},
-    {"R9_subLeading", 0.},
-    {"hOverE_subLeading", 0.},
-    {"sigmaIEtaIEta_subLeading", 0.},
-    {"clusIso_subLeading", 0.},
-    {"trkIso_subLeading", 0.}
-  };
-  std::map<std::string, float> upperHistLimits_HLT_ = {
-    {"R9_leading", 1.},
-    {"hOverE_leading", 0.2},
-    {"sigmaIEtaIEta_leading", 0.025},
-    {"clusIso_leading", 50.},
-    {"trkIso_leading", 50.},
-    {"R9_subLeading", 1.},
-    {"hOverE_subLeading", 0.2},
-    {"sigmaIEtaIEta_subLeading", 0.025},
-    {"clusIso_subLeading", 50.},
-    {"trkIso_subLeading", 50.}
-  };
-
-  std::vector<std::string> diphotonHLTCriteria_ = {"R9_leading", "hOverE_leading", "sigmaIEtaIEta_leading", "clusIso_leading", "trkIso_leading", "R9_subLeading", "hOverE_subLeading", "sigmaIEtaIEta_subLeading", "clusIso_subLeading", "trkIso_subLeading"};
+  bool selectJetsAwayFromPhotons_ = false;  
   std::vector<double> efficiencyBinEdges_;
   std::map<std::string, TH1F*> h_global1D_TruthMatched_;
   std::map<std::string, TH1F*> h_global1D_HLT_TruthMatched_;
@@ -233,9 +165,9 @@ private:
 MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
 {
   //now do what ever initialization is needed
-  checkMapKeysAgainstVector(nHistBins_, photonIDCriteria_);
-  checkMapKeysAgainstVector(lowerHistLimits_, photonIDCriteria_);
-  checkMapKeysAgainstVector(upperHistLimits_, photonIDCriteria_);
+  checkMapKeysAgainstVector(constants::nHistBins_, constants::photonIDCriteria_);
+  checkMapKeysAgainstVector(constants::lowerHistLimits_, constants::photonIDCriteria_);
+  checkMapKeysAgainstVector(constants::upperHistLimits_, constants::photonIDCriteria_);
 
   for (int i = 0; i <= 12; ++i) {
     efficiencyBinEdges_.push_back(1.0*(10+i*20)); // Bins up to 250 GeV are binned in 20 GeV; first edge at 10 GeV, last edge at 250 GeV
@@ -246,44 +178,44 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   efficiencyBinEdges_.push_back(600.);
   efficiencyBinEdges_.push_back(1000.);
 
-  for (const auto& criterion: photonIDCriteria_) {
-    h_global1D_TruthMatched_[criterion] = new TH1F((criterion + "_global_TruthMatched").c_str(), (criterion + "_global_TruthMatched;" + criterion).c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
+  for (const auto& criterion: constants::photonIDCriteria_) {
+    h_global1D_TruthMatched_[criterion] = new TH1F((criterion + "_global_TruthMatched").c_str(), (criterion + "_global_TruthMatched;" + criterion).c_str(), constants::nHistBins_.at(criterion), constants::lowerHistLimits_.at(criterion), constants::upperHistLimits_.at(criterion));
     h_global1D_TruthMatched_[criterion]->StatOverflows(kTRUE);
     h_global1D_ETEfficiencies_TruthMatched_[criterion] = new TEfficiency((criterion + "_ETEfficiency_global_TruthMatched").c_str(), (criterion + "_ETEfficiency_global_TruthMatched;photon ET;#epsilon").c_str(), (efficiencyBinEdges_.size()-1), &(efficiencyBinEdges_[0]));
-    h_NMinus1_[criterion] = new TH1F((criterion + "_NMinus1").c_str(), (criterion + "_NMinus1;" + criterion).c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
+    h_NMinus1_[criterion] = new TH1F((criterion + "_NMinus1").c_str(), (criterion + "_NMinus1;" + criterion).c_str(), constants::nHistBins_.at(criterion), constants::lowerHistLimits_.at(criterion), constants::upperHistLimits_.at(criterion));
     h_NMinus1_[criterion]->StatOverflows(kTRUE);
-    h_NMinus1_TruthMatched_[criterion] = new TH1F((criterion + "_NMinus1_TruthMatched").c_str(), (criterion + "_NMinus1_TruthMatched;" + criterion).c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
+    h_NMinus1_TruthMatched_[criterion] = new TH1F((criterion + "_NMinus1_TruthMatched").c_str(), (criterion + "_NMinus1_TruthMatched;" + criterion).c_str(), constants::nHistBins_.at(criterion), constants::lowerHistLimits_.at(criterion), constants::upperHistLimits_.at(criterion));
     h_NMinus1_TruthMatched_[criterion]->StatOverflows(kTRUE);
     h_NMinus1_ETEfficiencies_TruthMatched_[criterion] = new TEfficiency((criterion + "_ETEfficiency_NMinus1_TruthMatched").c_str(), (criterion + "_ETEfficiency_NMinus1_TruthMatched;photon ET;#epsilon").c_str(), (efficiencyBinEdges_.size()-1), &(efficiencyBinEdges_[0]));
   }
 
-  for (const auto& criterion: diphotonHLTCriteria_) {
-    h_global1D_HLT_TruthMatched_[criterion] = new TH1F((criterion + "_global_HLT_TruthMatched_").c_str(), (criterion + "_global_TruthMatched_;" + criterion).c_str(), nHistBins_HLT_.at(criterion), lowerHistLimits_HLT_.at(criterion), upperHistLimits_HLT_.at(criterion));
+  for (const auto& criterion: constants::diphotonHLTCriteria_) {
+    h_global1D_HLT_TruthMatched_[criterion] = new TH1F((criterion + "_global_HLT_TruthMatched_").c_str(), (criterion + "_global_TruthMatched_;" + criterion).c_str(), constants::nHistBins_HLT_.at(criterion), constants::lowerHistLimits_HLT_.at(criterion), constants::upperHistLimits_HLT_.at(criterion));
     h_global1D_HLT_TruthMatched_[criterion]->StatOverflows(kTRUE);
-    h_NMinus1_HLT_TruthMatched_[criterion] = new TH1F((criterion + "_NMinus1_HLT_TruthMatched_").c_str(), (criterion + "_NMinus1_TruthMatched_;" + criterion).c_str(), nHistBins_HLT_.at(criterion), lowerHistLimits_HLT_.at(criterion), upperHistLimits_HLT_.at(criterion));
+    h_NMinus1_HLT_TruthMatched_[criterion] = new TH1F((criterion + "_NMinus1_HLT_TruthMatched_").c_str(), (criterion + "_NMinus1_TruthMatched_;" + criterion).c_str(), constants::nHistBins_HLT_.at(criterion), constants::lowerHistLimits_HLT_.at(criterion), constants::upperHistLimits_HLT_.at(criterion));
     h_NMinus1_HLT_TruthMatched_[criterion]->StatOverflows(kTRUE);
   }
   h_HLTEfficiency_TruthMatched_ = new TEfficiency("HLTEfficiency_TruthMatched", "HLTEfficiency_TruthMatched;ET_leading;ET_subLeading", (efficiencyBinEdges_.size()-1), &(efficiencyBinEdges_[0]), (efficiencyBinEdges_.size()-1), &(efficiencyBinEdges_[0]));
 
-  for (unsigned int criterion1Index = 0; criterion1Index < (-1+photonIDCriteria_.size()); ++criterion1Index) {
-    std::string& criterion1 = photonIDCriteria_.at(criterion1Index);
-    for (unsigned int criterion2Index = (1+criterion1Index); criterion2Index < photonIDCriteria_.size(); ++criterion2Index) {
-      std::string& criterion2 = photonIDCriteria_.at(criterion2Index);
+  for (unsigned int criterion1Index = 0; criterion1Index < (-1+constants::photonIDCriteria_.size()); ++criterion1Index) {
+    std::string& criterion1 = constants::photonIDCriteria_.at(criterion1Index);
+    for (unsigned int criterion2Index = (1+criterion1Index); criterion2Index < constants::photonIDCriteria_.size(); ++criterion2Index) {
+      std::string& criterion2 = constants::photonIDCriteria_.at(criterion2Index);
       std::string prefix2D = criterion1 + "_" + criterion2;
-      h_NMinus2_TruthMatched_[criterion1][criterion2] = new TH2F((prefix2D + "_NMinus2_TruthMatched").c_str(), (prefix2D + "_NMinus2_TruthMatched").c_str(), nHistBins_.at(criterion1), lowerHistLimits_.at(criterion1), upperHistLimits_.at(criterion1), nHistBins_.at(criterion2), lowerHistLimits_.at(criterion2), upperHistLimits_.at(criterion2));
+      h_NMinus2_TruthMatched_[criterion1][criterion2] = new TH2F((prefix2D + "_NMinus2_TruthMatched").c_str(), (prefix2D + "_NMinus2_TruthMatched").c_str(), constants::nHistBins_.at(criterion1), constants::lowerHistLimits_.at(criterion1), constants::upperHistLimits_.at(criterion1), constants::nHistBins_.at(criterion2), constants::lowerHistLimits_.at(criterion2), constants::upperHistLimits_.at(criterion2));
       h_NMinus2_TruthMatched_[criterion1][criterion2]->StatOverflows(kTRUE);
       h_NMinus2_TruthMatched_[criterion1][criterion2]->GetXaxis()->SetTitle(criterion1.c_str());
       h_NMinus2_TruthMatched_[criterion1][criterion2]->GetYaxis()->SetTitle(criterion2.c_str());
-      h_global2D_TruthMatched_[criterion1][criterion2] = new TH2F((prefix2D + "_global2D_TruthMatched").c_str(), (prefix2D + "_global2D_TruthMatched").c_str(), nHistBins_.at(criterion1), lowerHistLimits_.at(criterion1), upperHistLimits_.at(criterion1), nHistBins_.at(criterion2), lowerHistLimits_.at(criterion2), upperHistLimits_.at(criterion2));
+      h_global2D_TruthMatched_[criterion1][criterion2] = new TH2F((prefix2D + "_global2D_TruthMatched").c_str(), (prefix2D + "_global2D_TruthMatched").c_str(), constants::nHistBins_.at(criterion1), constants::lowerHistLimits_.at(criterion1), constants::upperHistLimits_.at(criterion1), constants::nHistBins_.at(criterion2), constants::lowerHistLimits_.at(criterion2), constants::upperHistLimits_.at(criterion2));
       h_global2D_TruthMatched_[criterion1][criterion2]->StatOverflows(kTRUE);
       h_global2D_TruthMatched_[criterion1][criterion2]->GetXaxis()->SetTitle(criterion1.c_str());
       h_global2D_TruthMatched_[criterion1][criterion2]->GetYaxis()->SetTitle(criterion2.c_str());
     }
   }
 
-  for (unsigned int sequenceIndex = 0; sequenceIndex < stepByStepSequences_.size(); ++sequenceIndex) {
-    const std::vector<std::string>& sequence = stepByStepSequences_.at(sequenceIndex);
-    if (!(std::is_permutation(sequence.begin(), sequence.end(), photonIDCriteria_.begin()))) {
+  for (unsigned int sequenceIndex = 0; sequenceIndex < constants::stepByStepSequences_.size(); ++sequenceIndex) {
+    const std::vector<std::string>& sequence = constants::stepByStepSequences_.at(sequenceIndex);
+    if (!(std::is_permutation(sequence.begin(), sequence.end(), constants::photonIDCriteria_.begin()))) {
       std::cout << "ERROR: sequence is not a permutation of photonIDCriteria." << std::endl;
       std::exit(EXIT_FAILURE);
     }
@@ -294,7 +226,7 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
     for (unsigned int stepIndex = 0; stepIndex < sequence.size(); ++stepIndex) {
       unsigned int stepNumber = stepIndex + 1;
       const std::string& criterion = sequence.at(stepIndex);
-      h_stepByStep_TruthMatched_[sequenceIndex][stepIndex] = new TH1F((stepByStepPrefix + "step" + std::to_string(stepNumber)).c_str(), (stepByStepPrefix + "step" + std::to_string(stepNumber)).c_str(), nHistBins_.at(criterion), lowerHistLimits_.at(criterion), upperHistLimits_.at(criterion));
+      h_stepByStep_TruthMatched_[sequenceIndex][stepIndex] = new TH1F((stepByStepPrefix + "step" + std::to_string(stepNumber)).c_str(), (stepByStepPrefix + "step" + std::to_string(stepNumber)).c_str(), constants::nHistBins_.at(criterion), constants::lowerHistLimits_.at(criterion), constants::upperHistLimits_.at(criterion));
       h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]->StatOverflows(kTRUE);
       h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]->GetXaxis()->SetTitle(criterion.c_str());
     }
@@ -310,26 +242,28 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_nLoosePhotons_TruthMatched_->StatOverflows(kTRUE);
   h_selectionRegion_ = new TH1F("selectionRegion", "selectionRegion;region", 4, -0.5, 3.5);
   h_selectionRegion_->StatOverflows(kTRUE);
-  h_photonType_ = new TH1F("photonType", "photonType", 5, 0.5, 5.5);
+  h_photonType_ = new TH1F("photonType", "photonType", 7, 0.5, 7.5);
   h_photonType_->StatOverflows(kTRUE);
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(1.0), "medium");
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(2.0), "medium, truth-matched");
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(3.0), "loose");
   h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(4.0), "loose, truth-matched");
-  h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(5.0), "all, truth-matched");
+  h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(5.0), "extraLoose");
+  h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(6.0), "extraLoose, truth-matched");
+  h_photonType_->GetXaxis()->SetBinLabel(h_photonType_->GetXaxis()->FindFixBin(7.0), "all, truth-matched");
   h_nPU_ = new TH1F("nPU", "nPU;nPU", 200, -0.5, 199.5);
   h_nPU_->StatOverflows(kTRUE);
   h_rho_ = new TH1F("rho", "rho;rho", 500, 0., 100.);
   h_rho_->StatOverflows(kTRUE);
-  h_chIso_raw_TruthMatched_ = new TH1F("chIso_raw_TruthMatched", "chIso_raw_TruthMatched;chIso_raw", nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
-  h_neutIso_raw_TruthMatched_ = new TH1F("neutIso_raw_TruthMatched", "neutIso_raw_TruthMatched;neutIso_raw", nHistBins_.at("neutIso"), lowerHistLimits_.at("neutIso"), upperHistLimits_.at("neutIso"));
-  h_phoIso_raw_TruthMatched_ = new TH1F("phoIso_raw_TruthMatched", "phoIso_raw_TruthMatched;phoIso_raw", nHistBins_.at("phoIso"), lowerHistLimits_.at("phoIso"), upperHistLimits_.at("phoIso"));
+  h_chIso_raw_TruthMatched_ = new TH1F("chIso_raw_TruthMatched", "chIso_raw_TruthMatched;chIso_raw", constants::nHistBins_.at("chIso"), constants::lowerHistLimits_.at("chIso"), constants::upperHistLimits_.at("chIso"));
+  h_neutIso_raw_TruthMatched_ = new TH1F("neutIso_raw_TruthMatched", "neutIso_raw_TruthMatched;neutIso_raw", constants::nHistBins_.at("neutIso"), constants::lowerHistLimits_.at("neutIso"), constants::upperHistLimits_.at("neutIso"));
+  h_phoIso_raw_TruthMatched_ = new TH1F("phoIso_raw_TruthMatched", "phoIso_raw_TruthMatched;phoIso_raw", constants::nHistBins_.at("phoIso"), constants::lowerHistLimits_.at("phoIso"), constants::upperHistLimits_.at("phoIso"));
   h_phoET_TruthMatched_ = new TH1F("phoET_TruthMatched", "phoET_TruthMatched;photon ET;nEvents/bin", (efficiencyBinEdges_.size()-1), &(efficiencyBinEdges_[0]));
   h_phoET_passingID_TruthMatched_ = new TH1F("phoET_passingID_TruthMatched", "phoET_passingID_TruthMatched;photon ET;nEvents/bin", (efficiencyBinEdges_.size()-1), &(efficiencyBinEdges_[0]));
   h_overallETEfficiency_TruthMatched_ = new TEfficiency("overallETEfficiency_TruthMatched", "overallETEfficiency_TruthMatched;photon ET;#epsilon", (efficiencyBinEdges_.size()-1), &(efficiencyBinEdges_[0]));
-  h_mediumFakeCriteria_ = new TH2F("mediumFakeCriteria", "ID criteria: (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
+  h_mediumFakeCriteria_ = new TH2F("mediumFakeCriteria", "ID criteria: (N-2) plot;sigmaIEtaIEta;chIso", constants::nHistBins_.at("sigmaIEtaIEta"), constants::lowerHistLimits_.at("sigmaIEtaIEta"), constants::upperHistLimits_.at("sigmaIEtaIEta"), constants::nHistBins_.at("chIso"), constants::lowerHistLimits_.at("chIso"), constants::upperHistLimits_.at("chIso"));
   h_mediumFakeCriteria_->StatOverflows(kTRUE);
-  h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", nHistBins_.at("sigmaIEtaIEta"), lowerHistLimits_.at("sigmaIEtaIEta"), upperHistLimits_.at("sigmaIEtaIEta"), nHistBins_.at("chIso"), lowerHistLimits_.at("chIso"), upperHistLimits_.at("chIso"));
+  h_mediumFakeCriteria_TruthMatched_ = new TH2F("mediumFakeCriteria_TruthMatched", "ID criteria(truth-matched): (N-2) plot;sigmaIEtaIEta;chIso", constants::nHistBins_.at("sigmaIEtaIEta"), constants::lowerHistLimits_.at("sigmaIEtaIEta"), constants::upperHistLimits_.at("sigmaIEtaIEta"), constants::nHistBins_.at("chIso"), constants::lowerHistLimits_.at("chIso"), constants::upperHistLimits_.at("chIso"));
   h_mediumFakeCriteria_TruthMatched_->StatOverflows(kTRUE);
   h_nHighPTJets_ = new TH1F("nHighPTJets", "nHighPTJets;nJets (PT > 30);",21,-0.5,20.5);
   h_nHighPTJets_TruthMatched_ = new TH1F("nHighPTJets_TruthMatched", "nHighPTJets;nJets (truth-matched) (PT > 30);",21,-0.5,20.5);
@@ -360,29 +294,29 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
 {
   // do anything here that needs to be done at desctruction time
   // (e.g. close files, deallocate resources etc.)
-  for (const auto& criterion: photonIDCriteria_) {
+  for (const auto& criterion: constants::photonIDCriteria_) {
     outputFile_->WriteTObject(h_NMinus1_[criterion]);
     outputFile_->WriteTObject(h_NMinus1_TruthMatched_[criterion]);
     outputFile_->WriteTObject(h_NMinus1_ETEfficiencies_TruthMatched_[criterion]);
     outputFile_->WriteTObject(h_global1D_TruthMatched_[criterion]);
     outputFile_->WriteTObject(h_global1D_ETEfficiencies_TruthMatched_[criterion]);
   }
-  for (const auto& criterion: diphotonHLTCriteria_) {
+  for (const auto& criterion: constants::diphotonHLTCriteria_) {
     outputFile_->WriteTObject(h_NMinus1_HLT_TruthMatched_[criterion]);
     outputFile_->WriteTObject(h_global1D_HLT_TruthMatched_[criterion]);
   }
   outputFile_->WriteTObject(h_HLTEfficiency_TruthMatched_);
-  for (unsigned int criterion1Index = 0; criterion1Index < (-1+photonIDCriteria_.size()); ++criterion1Index) {
-    std::string& criterion1 = photonIDCriteria_.at(criterion1Index);
-    for (unsigned int criterion2Index = (1+criterion1Index); criterion2Index < photonIDCriteria_.size(); ++criterion2Index) {
-      std::string& criterion2 = photonIDCriteria_.at(criterion2Index);
+  for (unsigned int criterion1Index = 0; criterion1Index < (-1+constants::photonIDCriteria_.size()); ++criterion1Index) {
+    std::string& criterion1 = constants::photonIDCriteria_.at(criterion1Index);
+    for (unsigned int criterion2Index = (1+criterion1Index); criterion2Index < constants::photonIDCriteria_.size(); ++criterion2Index) {
+      std::string& criterion2 = constants::photonIDCriteria_.at(criterion2Index);
       outputFile_->WriteTObject(h_NMinus2_TruthMatched_[criterion1][criterion2]);
       outputFile_->WriteTObject(h_global2D_TruthMatched_[criterion1][criterion2]);
     }
   }
 
-  for (unsigned int sequenceIndex = 0; sequenceIndex < stepByStepSequences_.size(); ++sequenceIndex) {
-    for (unsigned int stepIndex = 0; stepIndex < photonIDCriteria_.size(); ++stepIndex) {
+  for (unsigned int sequenceIndex = 0; sequenceIndex < constants::stepByStepSequences_.size(); ++sequenceIndex) {
+    for (unsigned int stepIndex = 0; stepIndex < constants::photonIDCriteria_.size(); ++stepIndex) {
       outputFile_->WriteTObject(h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]);
     }
   }
@@ -473,33 +407,33 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
         (absEta < 1.442)) {
       float min_truth_deltaR = getMinDeltaR(iPho->eta(), iPho->phi(), truthPhotonsEtaPhi);
       assert(min_truth_deltaR > 0.);
-      bool isTruthMatched = (min_truth_deltaR < 0.05);
+      bool isTruthMatched = (min_truth_deltaR < constants::deltaR_photonTruthMatching);
       if (isTruthMatched) ++nTruthMatchedPhotonsInKinematicRegion;
       if (isTruthMatched && verbosity_ >= 4) std::cout << "Found truth-matched photon at eta = " << iPho->eta() << ", phi = " << iPho->phi() << std::endl;
       float hOverE = iPho->hadTowOverEm();
       float R9 = iPho->full5x5_r9();
-      bool passes_hOverE = (hOverE < 0.02197);
+      bool passes_hOverE = (hOverE < constants::cut_hOverE);
       float sigmaIEtaIEta = iPho->full5x5_sigmaIetaIeta();
-      bool passes_sigmaIEtaIEta = (sigmaIEtaIEta < 0.01015);
-      bool passes_sigmaIEtaIEta_loose = (sigmaIEtaIEta < 0.02);
+      bool passes_sigmaIEtaIEta = (sigmaIEtaIEta < constants::cut_sigmaIEtaIEta);
+      bool passes_sigmaIEtaIEta_loose = (sigmaIEtaIEta < constants::cutLoose_sigmaIEtaIEta);
       float chargedHadronIsolation = iPho->userFloat("phoChargedIsolation");
       if (isTruthMatched) h_chIso_raw_TruthMatched_->Fill(chargedHadronIsolation);
       float rhoCorrectedChargedHadronIsolation = getRhoCorrectedIsolation(absEta, PFTypeForEA::chargedHadron, chargedHadronIsolation, rho);
-      bool passes_chIso = (rhoCorrectedChargedHadronIsolation < 1.141);
-      bool passes_chIso_loose = (rhoCorrectedChargedHadronIsolation < 6.0);
+      bool passes_chIso = (rhoCorrectedChargedHadronIsolation < constants::cut_chargedIsolation);
+      bool passes_chIso_loose = (rhoCorrectedChargedHadronIsolation < constants::cutLoose_chargedIsolation);
       float neutralHadronIsolation = iPho->userFloat("phoNeutralHadronIsolation");
-      if (isTruthMatched) h_neutIso_raw_TruthMatched_->Fill(neutralHadronIsolation/(1.189 + 0.01512*ET + 0.00002259*ET*ET));
+      if (isTruthMatched) h_neutIso_raw_TruthMatched_->Fill(neutralHadronIsolation/(constants::neutralHadronScale_constant + constants::neutralHadronScale_linear*ET + constants::neutralHadronScale_quadratic*ET*ET));
       float rhoCorrectedNeutralHadronIsolation = getRhoCorrectedIsolation(absEta, PFTypeForEA::neutralHadron, neutralHadronIsolation, rho);
-      float rhoCorrectedNeutralHadronIsolation_scaled = rhoCorrectedNeutralHadronIsolation/(1.189 + 0.01512*ET + 0.00002259*ET*ET);
+      float rhoCorrectedNeutralHadronIsolation_scaled = rhoCorrectedNeutralHadronIsolation/(constants::neutralHadronScale_constant + constants::neutralHadronScale_linear*ET + constants::neutralHadronScale_quadratic*ET*ET);
       bool passes_neutIso = (rhoCorrectedNeutralHadronIsolation_scaled < 1.0);
       float photonIsolation = iPho->userFloat("phoPhotonIsolation");
-      if (isTruthMatched) h_phoIso_raw_TruthMatched_->Fill(photonIsolation/(2.08 + 0.004017*ET));
+      if (isTruthMatched) h_phoIso_raw_TruthMatched_->Fill(photonIsolation/(constants::photonIsolationScale_constant + constants::photonIsolationScale_linear*ET));
       float rhoCorrectedPhotonIsolation = getRhoCorrectedIsolation(absEta, PFTypeForEA::photon, photonIsolation, rho);
-      float rhoCorrectedPhotonIsolation_scaled = rhoCorrectedPhotonIsolation/(2.08 + 0.004017*ET);
+      float rhoCorrectedPhotonIsolation_scaled = rhoCorrectedPhotonIsolation/(constants::photonIsolationScale_constant + constants::photonIsolationScale_linear*ET);
       bool passes_phoIso = (rhoCorrectedPhotonIsolation_scaled < 1.0);
-      float clusIso_scaled_for_leading = (iPho->ecalPFClusterIso())/(6.0 + 0.012*ET + rho*0.29);
-      float clusIso_scaled_for_subLeading = (iPho->ecalPFClusterIso())/(6.0 + 0.012*ET + rho*0.16544);
-      float trkIso_scaled = (iPho->trkSumPtHollowConeDR03())/(6.0 + 0.002*ET);
+      float clusIso_scaled_for_leading = (iPho->ecalPFClusterIso())/(constants::clusIsoScale_HLT_leading_constant + constants::clusIsoScale_HLT_leading_linear*ET + constants::clusIsoScale_HLT_leading_rhoTerm*rho);
+      float clusIso_scaled_for_subLeading = (iPho->ecalPFClusterIso())/(constants::clusIsoScale_HLT_subLeading_constant + constants::clusIsoScale_HLT_subLeading_linear *ET + constants::clusIsoScale_HLT_subLeading_rhoTerm*rho);
+      float trkIso_scaled = (iPho->trkSumPtHollowConeDR03())/(constants::trkIsoScale_HLT_constant + constants::trkIsoScale_HLT_linear*ET);
 
       std::map<std::string, bool> photonIDBits;
       std::map<std::string, float> photonProperties;
@@ -513,8 +447,8 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       photonProperties["chIso"] = rhoCorrectedChargedHadronIsolation;
       photonProperties["neutIso"] = rhoCorrectedNeutralHadronIsolation_scaled;
       photonProperties["phoIso"] = rhoCorrectedPhotonIsolation_scaled;
-      checkMapKeysAgainstVector(photonIDBits, photonIDCriteria_);
-      checkMapKeysAgainstVector(photonProperties, photonIDCriteria_);
+      checkMapKeysAgainstVector(photonIDBits, constants::photonIDCriteria_);
+      checkMapKeysAgainstVector(photonProperties, constants::photonIDCriteria_);
       fillGlobal1DAndNMinus1Histograms(photonIDBits, photonProperties, isTruthMatched, ET);
       if (isTruthMatched) {
         h_photonType_->Fill(5.0);
@@ -551,7 +485,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
             eventHLTProperties["hOverE_subLeading"] = eventHLTProperties["hOverE_leading"];
             eventHLTProperties["R9_subLeading"] = eventHLTProperties["R9_leading"];
             eventHLTProperties["sigmaIEtaIEta_subLeading"] = eventHLTProperties["sigmaIEtaIEta_leading"];
-            eventHLTProperties["clusIso_subLeading"] = eventHLTProperties["clusIso_leading"]*((6.0 + 0.012*leadingET + 0.29*rho)/(6.0 + 0.012*ET + 0.16544*rho)); // needs to be recalculated because criteria are different between leading and subleading legs
+            eventHLTProperties["clusIso_subLeading"] = eventHLTProperties["clusIso_leading"]*((constants::clusIsoScale_HLT_leading_constant + constants::clusIsoScale_HLT_leading_linear*ET + constants::clusIsoScale_HLT_leading_rhoTerm*rho)/(constants::clusIsoScale_HLT_subLeading_constant + constants::clusIsoScale_HLT_subLeading_linear *ET + constants::clusIsoScale_HLT_subLeading_rhoTerm*rho)); // needs to be recalculated because criteria are different between leading and subleading legs
             eventHLTProperties["trkIso_subLeading"] = eventHLTProperties["trkIso_leading"];
             eventHLTBits["hOverE_subLeading"] = eventHLTBits["hOverE_leading"];
             eventHLTBits["R9_subLeading"] = eventHLTBits["R9_leading"];
@@ -566,7 +500,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
           eventHLTProperties["sigmaIEtaIEta_leading"] = sigmaIEtaIEta;
           eventHLTProperties["clusIso_leading"] = clusIso_scaled_for_leading;
           eventHLTProperties["trkIso_leading"] = trkIso_scaled;
-          eventHLTBits["hOverE_leading"] = (hOverE <= 0.12);
+          eventHLTBits["hOverE_leading"] = (hOverE <= constants::cut_HLT_hOverE);
           eventHLTBits["trkIso_leading"] = true;
           eventHLTBits["R9_leading"] = true;
           if ((R9 >= 0.5) && (R9 < 0.85)) {
@@ -574,7 +508,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
             eventHLTBits["clusIso_leading"] = true;
           }
           else if (R9 >= 0.85) {
-            eventHLTBits["sigmaIEtaIEta_leading"] = (sigmaIEtaIEta < 0.015);
+            eventHLTBits["sigmaIEtaIEta_leading"] = (sigmaIEtaIEta < constants::cut_HLT_sigmaIEtaIEta);
             eventHLTBits["clusIso_leading"] = (clusIso_scaled_for_leading <= 1.0);
           }
           else {
@@ -592,7 +526,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
             eventHLTProperties["sigmaIEtaIEta_subLeading"] = sigmaIEtaIEta;
             eventHLTProperties["clusIso_subLeading"] = clusIso_scaled_for_subLeading;
             eventHLTProperties["trkIso_subLeading"] = trkIso_scaled;
-            eventHLTBits["hOverE_subLeading"] = (hOverE <= 0.12);
+            eventHLTBits["hOverE_subLeading"] = (hOverE <= constants::cut_HLT_hOverE);
             eventHLTBits["R9_subLeading"] = true;
             if ((R9 >= 0.5) && (R9 < 0.85)) {
               eventHLTBits["sigmaIEtaIEta_subLeading"] = true;
@@ -600,7 +534,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
               eventHLTBits["trkIso_subLeading"] = true;
             }
             else if (R9 >= 0.85) {
-              eventHLTBits["sigmaIEtaIEta_subLeading"] = (sigmaIEtaIEta < 0.015);
+              eventHLTBits["sigmaIEtaIEta_subLeading"] = (sigmaIEtaIEta < constants::cut_HLT_sigmaIEtaIEta);
               eventHLTBits["clusIso_subLeading"] = (clusIso_scaled_for_subLeading <= 1.0);
               eventHLTBits["trkIso_subLeading"] = (trkIso_scaled <= 1.0);
             }
@@ -618,8 +552,8 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   } // ends loop over photon objects
   
   if (nTruthMatchedPhotonsInKinematicRegion == 2) {
-    checkMapKeysAgainstVector(eventHLTBits, diphotonHLTCriteria_);
-    checkMapKeysAgainstVector(eventHLTProperties, diphotonHLTCriteria_);
+    checkMapKeysAgainstVector(eventHLTBits, constants::diphotonHLTCriteria_);
+    checkMapKeysAgainstVector(eventHLTProperties, constants::diphotonHLTCriteria_);
     fillGlobal1DAndNMinus1HLTHistograms(eventHLTBits, eventHLTProperties, leadingET, subLeadingET);
   }
 
@@ -785,12 +719,12 @@ MinimalMiniAODAnalyzer::getMinDeltaR(const float& eta, const float& phi, std::ve
 void
 MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched, const float& ET) {
   std::map<std::string, bool> otherCriteriaAreMet;
-  for (unsigned int criterionIndex = 0; criterionIndex < photonIDCriteria_.size(); ++criterionIndex) {
-    std::string& criterion = photonIDCriteria_.at(criterionIndex);
+  for (unsigned int criterionIndex = 0; criterionIndex < constants::photonIDCriteria_.size(); ++criterionIndex) {
+    std::string& criterion = constants::photonIDCriteria_.at(criterionIndex);
     bool passesOtherRequirements = true;
-    for (unsigned int otherCriterionIndex = 0; otherCriterionIndex < photonIDCriteria_.size(); ++otherCriterionIndex) {
+    for (unsigned int otherCriterionIndex = 0; otherCriterionIndex < constants::photonIDCriteria_.size(); ++otherCriterionIndex) {
       if (criterionIndex == otherCriterionIndex) continue;
-      std::string& otherCriterion = photonIDCriteria_.at(otherCriterionIndex);
+      std::string& otherCriterion = constants::photonIDCriteria_.at(otherCriterionIndex);
       if (!(photonIDBits.at(otherCriterion))) {
         passesOtherRequirements = false;
         break;
@@ -798,7 +732,7 @@ MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1Histograms(const std::map<std::str
     }
     otherCriteriaAreMet[criterion] = passesOtherRequirements;
   }
-  for (const std::string& criterion: photonIDCriteria_) {
+  for (const std::string& criterion: constants::photonIDCriteria_) {
     if (otherCriteriaAreMet.at(criterion)) (h_NMinus1_.at(criterion))->Fill(photonProperties.at(criterion));
     if (isTruthMatched) {
       (h_global1D_TruthMatched_.at(criterion))->Fill(photonProperties.at(criterion));
@@ -814,12 +748,12 @@ MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1Histograms(const std::map<std::str
 void
 MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1HLTHistograms(const std::map<std::string, bool>& eventHLTBits, const std::map<std::string, float>& eventHLTProperties, const float& leadingET, const float& subLeadingET) {
   std::map<std::string, bool> otherCriteriaAreMet;
-  for (unsigned int criterionIndex = 0; criterionIndex < diphotonHLTCriteria_.size(); ++criterionIndex) {
-    std::string& criterion = diphotonHLTCriteria_.at(criterionIndex);
+  for (unsigned int criterionIndex = 0; criterionIndex < constants::diphotonHLTCriteria_.size(); ++criterionIndex) {
+    std::string& criterion = constants::diphotonHLTCriteria_.at(criterionIndex);
     bool passesOtherRequirements = true;
-    for (unsigned int otherCriterionIndex = 0; otherCriterionIndex < diphotonHLTCriteria_.size(); ++otherCriterionIndex) {
+    for (unsigned int otherCriterionIndex = 0; otherCriterionIndex < constants::diphotonHLTCriteria_.size(); ++otherCriterionIndex) {
       if (criterionIndex == otherCriterionIndex) continue;
-      std::string& otherCriterion = diphotonHLTCriteria_.at(otherCriterionIndex);
+      std::string& otherCriterion = constants::diphotonHLTCriteria_.at(otherCriterionIndex);
       if (!(eventHLTBits.at(otherCriterion))) {
         passesOtherRequirements = false;
         break;
@@ -828,25 +762,25 @@ MinimalMiniAODAnalyzer::fillGlobal1DAndNMinus1HLTHistograms(const std::map<std::
     otherCriteriaAreMet[criterion] = passesOtherRequirements;
   }
 
-  for (const std::string& criterion: diphotonHLTCriteria_) {
+  for (const std::string& criterion: constants::diphotonHLTCriteria_) {
     (h_global1D_HLT_TruthMatched_[criterion])->Fill(eventHLTProperties.at(criterion));
     if (otherCriteriaAreMet.at(criterion)) (h_NMinus1_HLT_TruthMatched_[criterion])->Fill(eventHLTProperties.at(criterion));
   }
 
-  h_HLTEfficiency_TruthMatched_->Fill((otherCriteriaAreMet.at(diphotonHLTCriteria_.at(0)) && eventHLTBits.at(diphotonHLTCriteria_.at(0))), leadingET, subLeadingET);
+  h_HLTEfficiency_TruthMatched_->Fill((otherCriteriaAreMet.at(constants::diphotonHLTCriteria_.at(0)) && eventHLTBits.at(constants::diphotonHLTCriteria_.at(0))), leadingET, subLeadingET);
 }
 
 void
 MinimalMiniAODAnalyzer::fillGlobal2DAndNMinus2Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties) {
-  for (unsigned int criterion1Index = 0; criterion1Index < (-1+photonIDCriteria_.size()); ++criterion1Index) {
-    std::string& criterion1 = photonIDCriteria_.at(criterion1Index);
-    for (unsigned int criterion2Index = (1+criterion1Index); criterion2Index < photonIDCriteria_.size(); ++criterion2Index) {
-      std::string& criterion2 = photonIDCriteria_.at(criterion2Index);
+  for (unsigned int criterion1Index = 0; criterion1Index < (-1+constants::photonIDCriteria_.size()); ++criterion1Index) {
+    std::string& criterion1 = constants::photonIDCriteria_.at(criterion1Index);
+    for (unsigned int criterion2Index = (1+criterion1Index); criterion2Index < constants::photonIDCriteria_.size(); ++criterion2Index) {
+      std::string& criterion2 = constants::photonIDCriteria_.at(criterion2Index);
       h_global2D_TruthMatched_[criterion1][criterion2]->Fill(photonProperties.at(criterion1), photonProperties.at(criterion2));
       bool passesOtherRequirements = true;
-      for (unsigned int otherCriterionIndex = 0; otherCriterionIndex < photonIDCriteria_.size(); ++otherCriterionIndex) {
+      for (unsigned int otherCriterionIndex = 0; otherCriterionIndex < constants::photonIDCriteria_.size(); ++otherCriterionIndex) {
         if ((otherCriterionIndex == criterion1Index) || (otherCriterionIndex == criterion2Index)) continue;
-        std::string& otherCriterion = photonIDCriteria_.at(otherCriterionIndex);
+        std::string& otherCriterion = constants::photonIDCriteria_.at(otherCriterionIndex);
         if (verbosity_ >= 5) std::cout << "For criterion1 = " << criterion1 << ", criterion2 = " << criterion2 << ", checking bit value at: " << otherCriterion << std::endl;
         if (!(photonIDBits.at(otherCriterion))) {
           passesOtherRequirements = false;
@@ -862,9 +796,9 @@ MinimalMiniAODAnalyzer::fillGlobal2DAndNMinus2Histograms(const std::map<std::str
 
 void
 MinimalMiniAODAnalyzer::fillStepByStepHistograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties) {
-  for (unsigned int sequenceIndex = 0; sequenceIndex < stepByStepSequences_.size(); ++sequenceIndex) {
-    const std::vector<std::string>& sequence = stepByStepSequences_.at(sequenceIndex);
-    for (unsigned int stepIndex = 0; stepIndex < photonIDCriteria_.size(); ++stepIndex) {
+  for (unsigned int sequenceIndex = 0; sequenceIndex < constants::stepByStepSequences_.size(); ++sequenceIndex) {
+    const std::vector<std::string>& sequence = constants::stepByStepSequences_.at(sequenceIndex);
+    for (unsigned int stepIndex = 0; stepIndex < constants::photonIDCriteria_.size(); ++stepIndex) {
       const std::string& criterion = sequence.at(stepIndex);
       h_stepByStep_TruthMatched_[sequenceIndex][stepIndex]->Fill(photonProperties.at(criterion));
       if (!(photonIDBits.at(criterion))) break;
