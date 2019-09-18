@@ -389,9 +389,11 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   }
 
   int nMediumPhotons = 0;
-  int nLoosePhotons = 0;
   int nMediumPhotons_TruthMatched = 0;
+  int nLoosePhotons = 0;
   int nLoosePhotons_TruthMatched = 0;
+  int nExtraLoosePhotons = 0;
+  int nExtraLoosePhotons_TruthMatched = 0;
   std::vector<std::pair<float, float> > fillQueue_mediumFakeCriteria;
   std::vector<std::pair<float, float> > fillQueue_mediumFakeCriteria_TruthMatched;
   std::map<std::string, bool> eventHLTBits;
@@ -451,7 +453,7 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       checkMapKeysAgainstVector(photonProperties, constants::photonIDCriteria_);
       fillGlobal1DAndNMinus1Histograms(photonIDBits, photonProperties, isTruthMatched, ET);
       if (isTruthMatched) {
-        h_photonType_->Fill(5.0);
+        h_photonType_->Fill(7.0);
         h_phoET_TruthMatched_->Fill(ET);
         fillGlobal2DAndNMinus2Histograms(photonIDBits, photonProperties);
         fillStepByStepHistograms(photonIDBits, photonProperties);
@@ -478,6 +480,14 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
             h_photonType_->Fill(4.0);
           }
         }
+	else if (passes_sigmaIEtaIEta_loose && !(passes_chIso_loose)) {
+	  ++nExtraLoosePhotons;
+	  h_photonType_->Fill(5.0);
+	  if (isTruthMatched) {
+	    ++nExtraLoosePhotons_TruthMatched;
+	    h_photonType_->Fill(6.0);
+	  }
+	}
       } // ends special 2D plots
       if (isTruthMatched) {
         if ((leadingET < 0.) || (ET > leadingET)) { // leading photon is not set; assume this one is the leading photon, OR leading photon is set but ET of this photon is greater than ET of currently leading photon
