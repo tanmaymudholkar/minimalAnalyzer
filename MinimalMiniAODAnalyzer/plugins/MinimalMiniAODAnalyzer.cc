@@ -685,18 +685,32 @@ MinimalMiniAODAnalyzer::passesTruthBasedSelection(const edm::Event& iEvent, std:
 
   int nPhotonsWithDesiredMom = 0;
   for (std::vector<reco::GenParticle>::const_iterator ip = genParticlesHandle->begin(); ip != genParticlesHandle->end(); ++ip) {
-    if ((ip->fromHardProcessFinalState()) &&
-        (ip->isPromptFinalState()) &&
-        (ip->isHardProcess())) {
-      int pid = ip->pdgId();
-      if (pid == 22) {
-        const reco::Candidate * mom = ip->mother();
-        int mom_pid = mom->pdgId();
-        if (verbosity_ >= 4) std::cout << "Found final state photon with mom ID = " << mom_pid << std::endl;
-        if (mom_pid == desired_parent_pid_) {
-          truthPhotonsEtaPhi.push_back(std::make_pair(static_cast<float>(ip->eta()), static_cast<float>(ip->phi())));
-          ++nPhotonsWithDesiredMom;
-        }
+    if (desired_parent_pid_ > 0) {
+      if ((ip->fromHardProcessFinalState()) &&
+	  (ip->isPromptFinalState()) &&
+	  (ip->isHardProcess())) {
+	int pid = ip->pdgId();
+	if (pid == 22) {
+	  const reco::Candidate * mom = ip->mother();
+	  int mom_pid = mom->pdgId();
+	  if (verbosity_ >= 4) std::cout << "Found final state photon with mom ID = " << mom_pid << std::endl;
+	  if (mom_pid == desired_parent_pid_) {
+	    truthPhotonsEtaPhi.push_back(std::make_pair(static_cast<float>(ip->eta()), static_cast<float>(ip->phi())));
+	    ++nPhotonsWithDesiredMom;
+	  }
+	}
+      }
+    }
+    else {
+      if (ip->status() == 1) { // is final state particle
+	int pid = ip->pdgId();
+	if (pid == 22) {
+	  if (verbosity_ >= 4) std::cout << "Found final state photon with eta = " << ip->eta() << ", phi = " << ip->phi() << ", pT = " << ip->pt() << std::endl;
+	  if (ip->pt() > 25.) {
+	    truthPhotonsEtaPhi.push_back(std::make_pair(static_cast<float>(ip->eta()), static_cast<float>(ip->phi())));
+	    ++nPhotonsWithDesiredMom;
+	  }
+	}
       }
     }
   }
