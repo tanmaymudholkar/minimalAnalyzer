@@ -41,6 +41,7 @@
 #include "DataFormats/PatCandidates/interface/Photon.h"
 #include "DataFormats/PatCandidates/interface/Jet.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/JetReco/interface/GenJet.h"
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
 #include "TFile.h"
 #include "TMath.h"
@@ -77,6 +78,7 @@ private:
   edm::EDGetTokenT<std::vector<reco::GenParticle> > genParticlesCollection_;
   edm::EDGetTokenT<std::vector<PileupSummaryInfo> > pileupSummaryToken_;
   edm::EDGetTokenT<edm::View<pat::Jet> > jetCollection_;
+  edm::EDGetTokenT<std::vector<reco::GenJet> > genJetCollection_;
   std::string outputPath_;
   TFile *outputFile_;
   int verbosity_;
@@ -137,9 +139,14 @@ private:
   TH1F* h_jetNeutralHadronEnergyFraction_;
   TH1F* h_jetChargedMultiplicity_;
   TH1F* h_jetNeutralMultiplicity_;
-  TH1F* h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet;
+  TH1F* h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet_;
+  TH1F* h_genJetEnergyCloseToTruePhotons_;
+  TH1F* h_genPhotonEnergyCloseToTruePhotons_;
+  TH1F* h_genLevelChargedHadronIsolation_;
+  TH1F* h_genLevelNeutralHadronIsolation_;
+  TH1F* h_genLevelPhotonIsolation_;
   float getRhoCorrectedIsolation(const float& absEta, const PFTypeForEA& type, const float& isolation, const double& rho);
-  bool passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi);
+  bool passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi, std::vector<float>& truthPhotonsET);
   float get_deltaR(const float& source_eta, const float& source_phi, const float& target_eta, const float& target_phi);
   float getMinDeltaR(const float& eta, const float& phi, std::vector<std::pair<float, float> >& targetEtaPhiList);
   void fillGlobal1DAndNMinus1Histograms(const std::map<std::string, bool>& photonIDBits, const std::map<std::string, float>& photonProperties, const bool& isTruthMatched, const float& ET);
@@ -274,7 +281,12 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   h_jetNeutralHadronEnergyFraction_ = new TH1F("jetNeutralHadronEnergyFraction", "neutralHadronEnergyFraction;neutralHadronEnergyFraction;", 2040, -0.01, 1.01);
   h_jetChargedMultiplicity_ = new TH1F("jetChargedMultiplicity", "chargedMultiplicity;charged multiplicity;", 500, -0.5, 499.5);
   h_jetNeutralMultiplicity_ = new TH1F("jetNeutralMultiplicity", "neutralMultiplicity;neutral multiplicity;", 500, -0.5, 499.5);
-  h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet = new TH1F("deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", "deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", 1000, -0.01, 6.29);
+  h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet_ = new TH1F("deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", "deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet", 1000, -0.01, 6.29);
+  h_genJetEnergyCloseToTruePhotons_ = new TH1F("genJetEnergyCloseToTruePhotons", "genJetEnergyCloseToTruePhotons", constants::nHistBins_.at("chIso"), constants::lowerHistLimits_.at("chIso"), 5.0*constants::upperHistLimits_.at("chIso"));
+  h_genPhotonEnergyCloseToTruePhotons_ = new TH1F("genPhotonEnergyCloseToTruePhotons", "genPhotonEnergyCloseToTruePhotons", constants::nHistBins_.at("phoIso"), constants::lowerHistLimits_.at("phoIso"), 5.0*constants::upperHistLimits_.at("phoIso"));
+  h_genLevelChargedHadronIsolation_ = new TH1F("genLevelChargedHadronIsolation", "genLevelChargedHadronIsolation;genChIso;", constants::nHistBins_.at("chIso"), constants::lowerHistLimits_.at("chIso"), constants::upperHistLimits_.at("chIso"));
+  h_genLevelNeutralHadronIsolation_ = new TH1F("genLevelNeutralHadronIsolation", "genLevelNeutralHadronIsolation;genNeutIso;", constants::nHistBins_.at("neutIso"), constants::lowerHistLimits_.at("neutIso"), constants::upperHistLimits_.at("neutIso"));
+  h_genLevelPhotonIsolation_ = new TH1F("genLevelPhotonIsolation", "genLevelPhotonIsolation;genPhoIso;", constants::nHistBins_.at("phoIso"), constants::lowerHistLimits_.at("phoIso"), constants::upperHistLimits_.at("phoIso"));
   outputPath_ = iConfig.getUntrackedParameter<std::string>("outputPath");
   outputFile_ = new TFile(outputPath_.c_str(), "RECREATE");
   verbosity_ = iConfig.getUntrackedParameter<int>("verbosity");
@@ -285,7 +297,8 @@ MinimalMiniAODAnalyzer::MinimalMiniAODAnalyzer(const edm::ParameterSet& iConfig)
   selectJetsAwayFromPhotons_ = iConfig.getUntrackedParameter<bool>("selectJetsAwayFromPhotons");
   rhoLabel_ = consumes<double>(iConfig.getParameter<edm::InputTag>("rhoLabel"));
   photonCollection_ = consumes<edm::View<pat::Photon> >(iConfig.getParameter<edm::InputTag>("photonSrc"));
-  jetCollection_ = consumes<edm::View<pat::Jet> > (iConfig.getParameter<edm::InputTag>("jetSrc"));
+  jetCollection_ = consumes<edm::View<pat::Jet> >(iConfig.getParameter<edm::InputTag>("jetSrc"));
+  genJetCollection_ = consumes<std::vector<reco::GenJet> >(iConfig.getParameter<edm::InputTag>("genJetSrc"));
   genParticlesCollection_ = consumes<std::vector<reco::GenParticle> >(iConfig.getParameter<edm::InputTag>("genParticleSrc"));
   pileupSummaryToken_ = consumes<std::vector<PileupSummaryInfo> >(iConfig.getParameter<edm::InputTag>("pileupSummary"));
 }
@@ -346,7 +359,12 @@ MinimalMiniAODAnalyzer::~MinimalMiniAODAnalyzer()
   outputFile_->WriteTObject(h_jetNeutralHadronEnergyFraction_);
   outputFile_->WriteTObject(h_jetChargedMultiplicity_);
   outputFile_->WriteTObject(h_jetNeutralMultiplicity_);
-  outputFile_->WriteTObject(h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet);
+  outputFile_->WriteTObject(h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet_);
+  outputFile_->WriteTObject(h_genJetEnergyCloseToTruePhotons_);
+  outputFile_->WriteTObject(h_genPhotonEnergyCloseToTruePhotons_);
+  outputFile_->WriteTObject(h_genLevelChargedHadronIsolation_);
+  outputFile_->WriteTObject(h_genLevelNeutralHadronIsolation_);
+  outputFile_->WriteTObject(h_genLevelPhotonIsolation_);
   outputFile_->Close();
 }
 
@@ -364,11 +382,13 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   h_nPU_->Fill(nPU);
 
   std::vector<std::pair<float, float> > truthPhotonsEtaPhi;
-  bool passesMC = passesTruthBasedSelection(iEvent, truthPhotonsEtaPhi);
+  std::vector<float> truthPhotonsET;
+  bool passesMC = passesTruthBasedSelection(iEvent, truthPhotonsEtaPhi, truthPhotonsET);
   if (!(passesMC)) {
     return;
   }
   assert(static_cast<int>(truthPhotonsEtaPhi.size()) == 2);
+  assert(static_cast<int>(truthPhotonsEtaPhi.size()) == static_cast<int>(truthPhotonsET.size()));
   if (verbosity_ >= 4) {
     for (auto& etaPhiElement: truthPhotonsEtaPhi) {
       std::cout << "Found true photon with eta = " << etaPhiElement.first << ", phi = " << etaPhiElement.second << std::endl;
@@ -642,11 +662,118 @@ MinimalMiniAODAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     if (truthPhotonEta < 1.442) {
       float deltaRMin = getMinDeltaR(truthPhotonEta, truthPhotonPhi, lowNeutralEMFractionRecoJetEtaPhis);
       if (deltaRMin < 0.) continue;
-      h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet->Fill(deltaRMin);
+      h_deltaR_truePhoton_nearestLowNeutralEMFractionRecoJet_->Fill(deltaRMin);
     }
   }
   h_nHighPTJets_->Fill(1.0*nHighPTJets);
   h_nHighPTJets_TruthMatched_->Fill(1.0*nHighPTJets_TruthMatched);
+
+  edm::Handle<std::vector<reco::GenJet> > genJetHandle;
+  iEvent.getByToken(genJetCollection_, genJetHandle);
+
+  if (!genJetHandle.isValid()) {
+    edm::LogWarning("ggNtuplizer") << "no reco::GenJets in event";
+    return;
+  }
+
+  std::vector<std::pair<float, float> > genJetsEtaPhi;
+  std::vector<float> genJetsPT;
+  for (std::vector<reco::GenJet>::const_iterator iJet = genJetHandle->begin(); iJet != genJetHandle->end(); ++iJet) {
+    if (verbosity_ >= 4) std::cout << "Found gen jet with eta = " << iJet->eta() << ", pt = " << iJet->pt() << ", phi = " << iJet->phi() << std::endl;
+    genJetsEtaPhi.push_back(std::make_pair(static_cast<float>(iJet->eta()), static_cast<float>(iJet->phi())));
+    genJetsPT.push_back(static_cast<float>(iJet->pt()));
+  }
+  assert(static_cast<int>(genJetsEtaPhi.size()) == static_cast<int>(genJetsPT.size()));
+
+  for (int truthPhotonsEtaPhiIndex = 0; truthPhotonsEtaPhiIndex < static_cast<int>(truthPhotonsEtaPhi.size()); ++truthPhotonsEtaPhiIndex) {
+    const std::pair<float, float>& truthPhotonEtaPhi = truthPhotonsEtaPhi.at(truthPhotonsEtaPhiIndex);
+    const float& truthPhotonEta = truthPhotonEtaPhi.first;
+    const float& truthPhotonPhi = truthPhotonEtaPhi.second;
+
+    float genJetEnergyCloseToTruePhoton = 0.;
+    float genPhotonEnergyCloseToTruePhoton = 0.;
+
+    for (int truthPhotonsEtaPhiOtherIndex = 0; truthPhotonsEtaPhiOtherIndex < static_cast<int>(truthPhotonsEtaPhi.size()); ++truthPhotonsEtaPhiOtherIndex) {
+      if (truthPhotonsEtaPhiOtherIndex == truthPhotonsEtaPhiIndex) continue;
+      const std::pair<float, float>& truthPhotonEtaPhiOther = truthPhotonsEtaPhi.at(truthPhotonsEtaPhiOtherIndex);
+      const float& truthPhotonEtaOther = truthPhotonEtaPhiOther.first;
+      const float& truthPhotonPhiOther = truthPhotonEtaPhiOther.second;
+      float candidate_deltaR = get_deltaR(truthPhotonEta, truthPhotonPhi, truthPhotonEtaOther, truthPhotonPhiOther);
+      if (candidate_deltaR <= 0.3) {
+	genPhotonEnergyCloseToTruePhoton += truthPhotonsET.at(truthPhotonsEtaPhiOtherIndex);
+      }
+    }
+    h_genPhotonEnergyCloseToTruePhotons_->Fill(genPhotonEnergyCloseToTruePhoton);
+
+    for (int genJetIndex = 0; genJetIndex < static_cast<int>(genJetsEtaPhi.size()); ++genJetIndex) {
+      const std::pair<float, float>& genJetEtaPhi = genJetsEtaPhi.at(genJetIndex);
+      const float& genJetEta = genJetEtaPhi.first;
+      const float& genJetPhi = genJetEtaPhi.second;
+      float candidate_deltaR = get_deltaR(truthPhotonEta, truthPhotonPhi, genJetEta, genJetPhi);
+      if (candidate_deltaR <= 0.3) {
+	genJetEnergyCloseToTruePhoton += genJetsPT.at(genJetIndex);
+      }
+    }
+    h_genJetEnergyCloseToTruePhotons_->Fill(genJetEnergyCloseToTruePhoton);
+
+    float genChIso = 0.;
+    float genNeutIso = 0.;
+    float genPhoIso = 0.;
+    edm::Handle<std::vector<reco::GenParticle> > genParticlesHandle;
+    iEvent.getByToken(genParticlesCollection_, genParticlesHandle);
+    if (!genParticlesHandle.isValid()) {
+      edm::LogWarning("ggNtuplizer") << "no reco::GenParticles in event";
+      return;
+    }
+    for (std::vector<reco::GenParticle>::const_iterator ip = genParticlesHandle->begin(); ip != genParticlesHandle->end(); ++ip) {
+      float candidate_deltaR = get_deltaR(truthPhotonEta, truthPhotonPhi, ip->eta(), ip->phi());
+      if (candidate_deltaR > 0.3) continue;
+      bool isSourcePhoton = false;
+      if (desired_parent_pid_ > 0) {
+	if ((ip->fromHardProcessFinalState()) &&
+	    (ip->isPromptFinalState()) &&
+	    (ip->isHardProcess())) {
+	  int pid = ip->pdgId();
+	  if (pid == 22) {
+	    const reco::Candidate * mom = ip->mother();
+	    int mom_pid = mom->pdgId();
+	    if (verbosity_ >= 4) std::cout << "Found final state photon with mom ID = " << mom_pid << std::endl;
+	    if (mom_pid == desired_parent_pid_) {
+	      if (candidate_deltaR < 0.01) isSourcePhoton = true;
+	    }
+	  }
+	}
+      }
+      else {
+	if (ip->status() == 1) { // is final state particle
+	  int pid = ip->pdgId();
+	  if (pid == 22) {
+	    if (verbosity_ >= 4) std::cout << "Found final state photon with eta = " << ip->eta() << ", phi = " << ip->phi() << ", pT = " << ip->pt() << std::endl;
+	    if (ip->pt() > 25.) {
+	      if (candidate_deltaR < 0.01) isSourcePhoton = true;
+	    }
+	  }
+	}
+      }
+      if (isSourcePhoton) continue;
+      if (ip->status() != 1) continue; // if not final state particle, then break the loop
+
+      int absPID = std::abs(ip->pdgId());
+      if (absPID == 22) {
+	genPhoIso += ip->pt();
+      }
+      int charge = ip->charge();
+      bool isHadron = (absPID > 100 && absPID < 9999);
+      bool isNeutral = (charge == 0);
+      if (isHadron) {
+	if (isNeutral) genNeutIso += ip->pt();
+	else genChIso += ip->pt();
+      }
+    }
+    h_genLevelPhotonIsolation_->Fill(genPhoIso);
+    h_genLevelNeutralHadronIsolation_->Fill(genNeutIso);
+    h_genLevelChargedHadronIsolation_->Fill(genChIso);
+  }
 
 #ifdef THIS_IS_AN_EVENT_EXAMPLE
   Handle<ExampleData> pIn;
@@ -674,7 +801,7 @@ MinimalMiniAODAnalyzer::getRhoCorrectedIsolation(const float& absEta, const PFTy
 }
 
 bool
-MinimalMiniAODAnalyzer::passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi) {
+MinimalMiniAODAnalyzer::passesTruthBasedSelection(const edm::Event& iEvent, std::vector<std::pair<float, float> >& truthPhotonsEtaPhi, std::vector<float>& truthPhotonsET) {
   edm::Handle<std::vector<reco::GenParticle> > genParticlesHandle;
   iEvent.getByToken(genParticlesCollection_, genParticlesHandle);
 
@@ -696,6 +823,7 @@ MinimalMiniAODAnalyzer::passesTruthBasedSelection(const edm::Event& iEvent, std:
 	  if (verbosity_ >= 4) std::cout << "Found final state photon with mom ID = " << mom_pid << std::endl;
 	  if (mom_pid == desired_parent_pid_) {
 	    truthPhotonsEtaPhi.push_back(std::make_pair(static_cast<float>(ip->eta()), static_cast<float>(ip->phi())));
+	    truthPhotonsET.push_back(ip->pt());
 	    ++nPhotonsWithDesiredMom;
 	  }
 	}
@@ -708,6 +836,7 @@ MinimalMiniAODAnalyzer::passesTruthBasedSelection(const edm::Event& iEvent, std:
 	  if (verbosity_ >= 4) std::cout << "Found final state photon with eta = " << ip->eta() << ", phi = " << ip->phi() << ", pT = " << ip->pt() << std::endl;
 	  if (ip->pt() > 25.) {
 	    truthPhotonsEtaPhi.push_back(std::make_pair(static_cast<float>(ip->eta()), static_cast<float>(ip->phi())));
+	    truthPhotonsET.push_back(ip->pt());
 	    ++nPhotonsWithDesiredMom;
 	  }
 	}

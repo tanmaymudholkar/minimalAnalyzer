@@ -18,8 +18,8 @@ namespace constants{
     {"hOverE", 500},
     {"sigmaIEtaIEta", 500},
     {"chIso", 1000},
-    {"neutIso", 500},
-    {"phoIso", 500}
+    {"neutIso", 1000},
+    {"phoIso", 1000}
   };
   std::map<std::string, int> nHistBins_HLT_ = {
     {"R9_leading", 500},
@@ -67,9 +67,9 @@ namespace constants{
   std::map<std::string, float> upperHistLimits_ = {
     {"hOverE", 0.2},
     {"sigmaIEtaIEta", 0.025},
-    {"chIso", 60.},
-    {"neutIso", 10.},
-    {"phoIso", 10.}
+    {"chIso", 70.},
+    {"neutIso", 40.},
+    {"phoIso", 40.}
   };
   std::vector<std::string> diphotonHLTCriteria_ = {"R9_leading", "hOverE_leading", "sigmaIEtaIEta_leading", "clusIso_leading", "trkIso_leading", "R9_subLeading", "hOverE_subLeading", "sigmaIEtaIEta_subLeading", "clusIso_subLeading", "trkIso_subLeading"};
 
