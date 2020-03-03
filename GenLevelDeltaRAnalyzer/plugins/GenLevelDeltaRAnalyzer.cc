@@ -27,7 +27,7 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
   edm::Service<TFileService> fileService;
   eventProgenitor_ = iConfig.getUntrackedParameter<std::string>("eventProgenitor");
   verbosity_ = iConfig.getUntrackedParameter<int>("verbosity");
-  edm::LogInfo("GenDeltaRAnalyzer") << "Starting GenLevelDeltaRAnalyzer with verbosity: " << verbosity_;
+  edm::LogInfo("GenDeltaRAnalyzer") << "Starting GenLevelDeltaRAnalyzer with verbosity: " << verbosity_ << ", eventProgenitor: " << eventProgenitor_;
 
   eventInfoTree_ = fileService->make<TTree>("eventInfoTree", "eventInfoTree");
   eventInfoTree_->Branch("nStealthPhotons", &nStealthPhotons_, "nStealthPhotons/I");
@@ -110,8 +110,10 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       }
     }
     else if (eventProgenitorMass_ < 0.) {
+      if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "eventProgenitorMass unset. isSquarkPID: " << ((PIDUtils::isSquarkPID(prunedParticle.pdgId()))? "yes": "no") << "; isGluinoPID: " << ((PIDUtils::isGluinoPID(prunedParticle.pdgId()))? "yes": "no");
       if (((eventProgenitor_ == "squark") && (PIDUtils::isSquarkPID(prunedParticle.pdgId()))) ||
 	  ((eventProgenitor_ == "gluino") && (PIDUtils::isGluinoPID(prunedParticle.pdgId())))) {
+	if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "Setting eventProgenitorMass: " << prunedParticle.mass();
 	eventProgenitorMass_ = prunedParticle.mass();
       }
     }
