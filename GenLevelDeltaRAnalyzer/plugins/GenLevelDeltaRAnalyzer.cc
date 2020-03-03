@@ -26,34 +26,39 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
   outputPath_ = iConfig.getUntrackedParameter<std::string>("outputPath");
   outputFile_ = TFile::Open(outputPath_.c_str(), "RECREATE");
   verbosity_ = iConfig.getUntrackedParameter<int>("verbosity");
+  edm::LogInfo("GenDeltaRAnalyzer") << "Starting GenLevelDeltaRAnalyzer with verbosity: " << verbosity_;
 
-  // pairs_packedGenParticles_ = new TTree("pairs_packedGenParticles_", "pairs_packedGenParticles_");
-  // pairs_packedGenParticles_->Branch("packed_deltaR", &packed_deltaR_, "packed_deltaR/F");
-  // pairs_packedGenParticles_->Branch("packed_photonMom_pdgId", &packed_photonMom_pdgId_, "packed_photonMom_pdgId/I");
-  // pairs_packedGenParticles_->Branch("packed_photonPT", &packed_photonPT_, "packed_photonPT/F");
-  // pairs_packedGenParticles_->Branch("packed_otherParticle_pdgId", &packed_otherParticle_pdgId_, "packed_otherParticle_pdgId/I");
-  // pairs_packedGenParticles_->Branch("packed_otherParticleMom_pdgId", &packed_otherParticleMom_pdgId_, "packed_otherParticleMom_pdgId/I");
-  // pairs_packedGenParticles_->Branch("packed_otherParticlePT", &packed_otherParticlePT_, "packed_otherParticlePT/F");
-  pairs_prunedGenParticles_ = new TTree("pairs_prunedGenParticles_", "pairs_prunedGenParticles_");
-  pairs_prunedGenParticles_->Branch("pruned_deltaR", &pruned_deltaR_, "pruned_deltaR/F");
-  pairs_prunedGenParticles_->Branch("pruned_photonMom_pdgId", &pruned_photonMom_pdgId_, "pruned_photonMom_pdgId/I");
-  pairs_prunedGenParticles_->Branch("pruned_photonPT", &pruned_photonPT_, "pruned_photonPT/F");
-  pairs_prunedGenParticles_->Branch("pruned_otherParticle_pdgId", &pruned_otherParticle_pdgId_, "pruned_otherParticle_pdgId/I");
-  pairs_prunedGenParticles_->Branch("pruned_otherParticleMom_pdgId", &pruned_otherParticleMom_pdgId_, "pruned_otherParticleMom_pdgId/I");
-  pairs_prunedGenParticles_->Branch("pruned_otherParticlePT", &pruned_otherParticlePT_, "pruned_otherParticlePT/F");
+  eventInfoTree_ = new TTree("eventInfoTree", "eventInfoTree");
+  eventInfoTree_->Branch("nStealthPhotons", &nStealthPhotons_, "nStealthPhotons/I");
+  eventInfoTree_->Branch("nKinematicStealthPhotons", &nKinematicStealthPhotons_, "nKinematicStealthPhotons/I");
 
-  // packedGenParticlesCollection_ = consumes<edm::View<pat::PackedGenParticle> >(iConfig.getParameter<edm::InputTag>("packedGenParticlesSrc"));
+  deltaRTree_ = new TTree("deltaRTree", "deltaRTree");
+  deltaRTree_->Branch("deltaR_closestGenJet", &deltaR_closestGenJet_, "deltaR_closestGenJet/F");
+  deltaRTree_->Branch("deltaR_secondClosestGenJet", &deltaR_secondClosestGenJet_, "deltaR_secondClosestGenJet/F");
+  deltaRTree_->Branch("photonMom_pdgId", &photonMom_pdgId_, "photonMom_pdgId/I");
+  deltaRTree_->Branch("photonPT", &photonPT_, "photonPT/F");
+  deltaRTree_->Branch("closestGenJet_PT", &closestGenJet_PT_, "closestGenJet_PT/F");
+  deltaRTree_->Branch("closestGenJet_fraction_EM", &closestGenJet_fraction_EM_, "closestGenJet_fraction_EM/F");
+  deltaRTree_->Branch("closestGenJet_fraction_hadronic", &closestGenJet_fraction_hadronic_, "closestGenJet_fraction_hadronic/F");
+  deltaRTree_->Branch("closestGenJet_fraction_invisible", &closestGenJet_fraction_invisible_, "closestGenJet_fraction_invisible/F");
+  deltaRTree_->Branch("closestGenJet_fraction_aux", &closestGenJet_fraction_aux_, "closestGenJet_fraction_aux/F");
+  deltaRTree_->Branch("closestGenJet_totalFraction", &closestGenJet_totalFraction_, "closestGenJet_totalFraction/F");
+  deltaRTree_->Branch("secondClosestGenJet_PT", &secondClosestGenJet_PT_, "secondClosestGenJet_PT/F");
+  deltaRTree_->Branch("secondClosestGenJet_fraction_EM", &secondClosestGenJet_fraction_EM_, "secondClosestGenJet_fraction_EM/F");
+  deltaRTree_->Branch("secondClosestGenJet_fraction_hadronic", &secondClosestGenJet_fraction_hadronic_, "secondClosestGenJet_fraction_hadronic/F");
+  deltaRTree_->Branch("secondClosestGenJet_fraction_invisible", &secondClosestGenJet_fraction_invisible_, "secondClosestGenJet_fraction_invisible/F");
+  deltaRTree_->Branch("secondClosestGenJet_fraction_aux", &secondClosestGenJet_fraction_aux_, "secondClosestGenJet_fraction_aux/F");
+  deltaRTree_->Branch("secondClosestGenJet_totalFraction", &secondClosestGenJet_totalFraction_, "secondClosestGenJet_totalFraction/F");
+
   prunedGenParticlesCollection_ = consumes<edm::View<reco::GenParticle> >(iConfig.getParameter<edm::InputTag>("prunedGenParticlesSrc"));
+  genJetsCollection_ = consumes<edm::View<reco::GenJet> >(iConfig.getParameter<edm::InputTag>("genJetsSrc"));
 }
 
 
 GenLevelDeltaRAnalyzer::~GenLevelDeltaRAnalyzer()
 {
-
-  // do anything here that needs to be done at desctruction time
-  // (e.g. close files, deallocate resources etc.)
-  // outputFile_->WriteTObject(pairs_packedGenParticles_);
-  outputFile_->WriteTObject(pairs_prunedGenParticles_);
+  outputFile_->WriteTObject(eventInfoTree_);
+  outputFile_->WriteTObject(deltaRTree_);
   outputFile_->Close();
 }
 
@@ -66,56 +71,104 @@ GenLevelDeltaRAnalyzer::~GenLevelDeltaRAnalyzer()
 void
 GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
-  // edm::Handle<edm::View<pat::PackedGenParticle> > packedGenParticlesHandle;
-  // iEvent.getByToken(packedGenParticlesCollection_, packedGenParticlesHandle);
-  // int nPackedParticles = (*(packedGenParticlesHandle.product())).size();
-  // // for (const pat::PackedGenParticle& packedParticle: *(packedGenParticlesHandle.product())) {
-  // for (int packedParticleIndex = 0; packedParticleIndex < (nPackedParticles-1); ++packedParticleIndex) {
-  //   const pat::PackedGenParticle& packedParticle = (*(packedGenParticlesHandle.product()))[packedParticleIndex];
-  //   if (verbosity_ >= 2) std::cout << "Found packed particle at eta = " << packedParticle.eta() << ", phi = " << packedParticle.phi() << ", pdgId: " << packedParticle.pdgId() <<  std::endl;
-  //   if (PIDUtils::isPhotonPID(packedParticle.pdgId())) {
-  //     angularVariablesStruct photonEtaPhi = angularVariablesStruct(packedParticle.eta(), packedParticle.phi());
-  //     packed_photonMom_pdgId_ = ((packedParticle.mother(0) == nullptr) ? 0 : packedParticle.mother(0)->pdgId());
-  //     packed_photonPT_ = packedParticle.pt();
-  //     for (int otherPackedParticleIndex = (1+packedParticleIndex); otherPackedParticleIndex < nPackedParticles; ++otherPackedParticleIndex) {
-  // 	const pat::PackedGenParticle& otherPackedParticle = (*(packedGenParticlesHandle.product()))[otherPackedParticleIndex];
-  // 	if (PIDUtils::isInterestingPID(otherPackedParticle.pdgId())) {
-  // 	  angularVariablesStruct otherParticleEtaPhi = angularVariablesStruct(otherPackedParticle.eta(), otherPackedParticle.phi());
-  // 	  packed_deltaR_ = photonEtaPhi.get_deltaR(otherParticleEtaPhi);
-  // 	  packed_otherParticle_pdgId_ = otherPackedParticle.pdgId();
-  // 	  packed_otherParticleMom_pdgId_ = ((otherPackedParticle.mother(0) == nullptr) ? 0 : otherPackedParticle.mother(0)->pdgId());
-  // 	  packed_otherParticlePT_ = otherPackedParticle.pt();
-  // 	  pairs_packedGenParticles_->Fill();
-  // 	}
-  //     }
-  //   }
-  // }
-
   edm::Handle<edm::View<reco::GenParticle> > prunedGenParticlesHandle;
   iEvent.getByToken(prunedGenParticlesCollection_, prunedGenParticlesHandle);
   int nPrunedParticles = (*(prunedGenParticlesHandle.product())).size();
-  // for (const reco::GenParticle& prunedParticle: *(prunedGenParticlesHandle.product())) {
-  for (int prunedParticleIndex = 0; prunedParticleIndex < (nPrunedParticles-1); ++prunedParticleIndex) {
-    const reco::GenParticle& prunedParticle = (*(prunedGenParticlesHandle.product()))[prunedParticleIndex];
-    if (verbosity_ >= 2) std::cout << "Found pruned particle at eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pdgId: " << prunedParticle.pdgId() << std::endl;
+  if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Found " << nPrunedParticles << " prunedParticles.";
+
+  edm::Handle<edm::View<reco::GenJet> > genJetsHandle;
+  iEvent.getByToken(genJetsCollection_, genJetsHandle);
+  int nGenJets = (*(genJetsHandle.product())).size();
+  if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Found " << nGenJets << " jets.";
+
+  // First pass: make sure there are two stealth photons in EB with PT > 25.
+  std::vector<int> kinematicStealthPhotonIndices;
+  nStealthPhotons_ = 0;
+  nKinematicStealthPhotons_ = 0;
+  for (int prunedParticleIndex = 0; prunedParticleIndex < nPrunedParticles; ++prunedParticleIndex) {
+    const reco::GenParticle& prunedParticle = (*(prunedGenParticlesHandle.product())).at(prunedParticleIndex);
+    if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "Found pruned particle at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pdgId: " << prunedParticle.pdgId();
     if (PIDUtils::isPhotonPID(prunedParticle.pdgId())) {
-      angularVariablesStruct photonEtaPhi = angularVariablesStruct(prunedParticle.eta(), prunedParticle.phi());
-      pruned_photonMom_pdgId_ = ((prunedParticle.mother(0) == nullptr) ? 0 : prunedParticle.mother(0)->pdgId());
-      pruned_photonPT_ = prunedParticle.pt();
-      for (int otherPrunedParticleIndex = (1+prunedParticleIndex); otherPrunedParticleIndex < nPrunedParticles; ++otherPrunedParticleIndex) {
-	const reco::GenParticle& otherPrunedParticle = (*(prunedGenParticlesHandle.product()))[otherPrunedParticleIndex];
-	if (PIDUtils::isInterestingPID(otherPrunedParticle.pdgId())) {
-	  angularVariablesStruct otherParticleEtaPhi = angularVariablesStruct(otherPrunedParticle.eta(), otherPrunedParticle.phi());
-	  pruned_deltaR_ = photonEtaPhi.get_deltaR(otherParticleEtaPhi);
-	  pruned_otherParticle_pdgId_ = otherPrunedParticle.pdgId();
-	  pruned_otherParticleMom_pdgId_ = ((otherPrunedParticle.mother(0) == nullptr) ? 0 : otherPrunedParticle.mother(0)->pdgId());
-	  pruned_otherParticlePT_ = otherPrunedParticle.pt();
-	  pairs_prunedGenParticles_->Fill();
+      int prunedParticleMomID = ((prunedParticle.mother(0) == nullptr) ? 0 : prunedParticle.mother(0)->pdgId());
+      if (verbosity_ >= 3) edm::LogInfo("GenDeltaRAnalyzer") << "Found photon at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pT = " << prunedParticle.pt() << ", mom ID: " << prunedParticleMomID;
+      if (PIDUtils::isNeutralinoPID(prunedParticleMomID)) {
+	++nStealthPhotons_;
+	if ((prunedParticle.pt() >= 25.) && ((std::fabs(prunedParticle.eta())) < 1.442)) {
+	  ++nKinematicStealthPhotons_;
+	  kinematicStealthPhotonIndices.push_back(prunedParticleIndex);
 	}
       }
     }
   }
+  eventInfoTree_->Fill();
+  assert(nStealthPhotons_ <= 2);
 
+  if (!(nKinematicStealthPhotons_ == 2)) return;
+  assert(kinematicStealthPhotonIndices.size() == static_cast<unsigned int>(2));
+
+  for (const int& photonIndex: kinematicStealthPhotonIndices) {
+    const reco::GenParticle& prunedStealthPhoton = (*(prunedGenParticlesHandle.product())).at(photonIndex);
+
+    angularVariablesStruct photonEtaPhi = angularVariablesStruct(prunedStealthPhoton.eta(), prunedStealthPhoton.phi());
+    photonMom_pdgId_ = ((prunedStealthPhoton.mother(0) == nullptr) ? 0 : prunedStealthPhoton.mother(0)->pdgId()); // just a sanity check...
+    photonPT_ = prunedStealthPhoton.pt();
+    deltaR_closestGenJet_ = -0.1;
+    deltaR_secondClosestGenJet_ = -0.1;
+    int index_closestGenJet = -1;
+    int index_secondClosestGenJet = -1;
+    for (int genJetIndex = 0; genJetIndex < nGenJets; ++genJetIndex) {
+      const reco::GenJet& genJet = (*(genJetsHandle.product())).at(genJetIndex);
+      angularVariablesStruct genJetEtaPhi = angularVariablesStruct(genJet.eta(), genJet.phi());
+      float deltaR = photonEtaPhi.get_deltaR(genJetEtaPhi);
+      if (verbosity_ >= 3) edm::LogInfo("GenDeltaRAnalyzer") << "Found genJet at genJetIndex = " << genJetIndex << ", eta = " << genJet.eta() << ", phi = " << genJet.phi() << ", deltaR = " << deltaR << ", PT = " << genJet.pt() << ", EM energy = " << genJet.emEnergy() << ", Hadronic energy = " << genJet.hadEnergy();
+      if (deltaR_closestGenJet_ < 0.) { // closest deltaR is unset
+	assert(deltaR_secondClosestGenJet_ < 0.); // check that second-closest deltaR is unset as well
+	deltaR_closestGenJet_ = deltaR; // set closest deltaR to this deltaR
+	index_closestGenJet = genJetIndex;
+      }
+      else if (deltaR_secondClosestGenJet_ < 0.) { // second-closest deltaR is unset
+	if (deltaR < deltaR_closestGenJet_) { // if this deltaR is closer than previously set closest deltaR, move previously set closest deltaR to second-closest deltaR
+	  deltaR_secondClosestGenJet_ = deltaR_closestGenJet_;
+	  index_secondClosestGenJet = index_closestGenJet;
+	  deltaR_closestGenJet_ = deltaR;
+	  index_closestGenJet = genJetIndex;
+	}
+	else { // second-closest deltaR is unset but this deltaR is not as close as previously set deltaR
+	  deltaR_secondClosestGenJet_ = deltaR;
+	  index_secondClosestGenJet = genJetIndex;
+	}
+      }
+      else if (deltaR < deltaR_closestGenJet_) { // both closest and second-closest are set, and this deltaR is closer than previously set closest deltaR
+	deltaR_secondClosestGenJet_ = deltaR_closestGenJet_;
+	index_secondClosestGenJet = index_closestGenJet;
+	deltaR_closestGenJet_ = deltaR;
+	index_closestGenJet = genJetIndex;
+      }
+      else if (deltaR < deltaR_secondClosestGenJet_) { // // both closest and second-closest are set, and this deltaR is closer than previously set second-closest deltaR but not as close as previously set closest deltaR
+	deltaR_secondClosestGenJet_ = deltaR;
+	index_secondClosestGenJet = genJetIndex;
+      }
+    } // ends loop over genJets
+    closestGenJet_PT_ = ((*(genJetsHandle.product())).at(index_closestGenJet)).pt();
+    float closestGenJet_energy = ((*(genJetsHandle.product())).at(index_closestGenJet)).energy();
+    closestGenJet_fraction_EM_ = ((*(genJetsHandle.product())).at(index_closestGenJet)).emEnergy()/closestGenJet_energy;
+    closestGenJet_fraction_hadronic_ = ((*(genJetsHandle.product())).at(index_closestGenJet)).hadEnergy()/closestGenJet_energy;
+    closestGenJet_fraction_invisible_ = ((*(genJetsHandle.product())).at(index_closestGenJet)).invisibleEnergy()/closestGenJet_energy;
+    closestGenJet_fraction_aux_ = ((*(genJetsHandle.product())).at(index_closestGenJet)).auxiliaryEnergy()/closestGenJet_energy;
+    closestGenJet_totalFraction_ = closestGenJet_fraction_EM_ + closestGenJet_fraction_hadronic_ + closestGenJet_fraction_invisible_ + closestGenJet_fraction_aux_;
+
+    secondClosestGenJet_PT_ = ((*(genJetsHandle.product())).at(index_secondClosestGenJet)).pt();
+    float secondClosestGenJet_energy = ((*(genJetsHandle.product())).at(index_secondClosestGenJet)).energy();
+    secondClosestGenJet_fraction_EM_ = ((*(genJetsHandle.product())).at(index_secondClosestGenJet)).emEnergy()/secondClosestGenJet_energy;
+    secondClosestGenJet_fraction_hadronic_ = ((*(genJetsHandle.product())).at(index_secondClosestGenJet)).hadEnergy()/secondClosestGenJet_energy;
+    secondClosestGenJet_fraction_invisible_ = ((*(genJetsHandle.product())).at(index_secondClosestGenJet)).invisibleEnergy()/secondClosestGenJet_energy;
+    secondClosestGenJet_fraction_aux_ = ((*(genJetsHandle.product())).at(index_secondClosestGenJet)).auxiliaryEnergy()/secondClosestGenJet_energy;
+    secondClosestGenJet_totalFraction_ = secondClosestGenJet_fraction_EM_ + secondClosestGenJet_fraction_hadronic_ + secondClosestGenJet_fraction_invisible_ + secondClosestGenJet_fraction_aux_;
+    
+    if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Closest deltaR = " << deltaR_closestGenJet_ << " at genJetIndex = " << index_closestGenJet;
+    if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Second closest deltaR = " << deltaR_secondClosestGenJet_ << " at genJetIndex = " << index_secondClosestGenJet;
+    deltaRTree_->Fill();
+  } // ends loop over all gen particles
 }
 
 

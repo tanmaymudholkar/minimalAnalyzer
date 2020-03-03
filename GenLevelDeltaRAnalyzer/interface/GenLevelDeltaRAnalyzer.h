@@ -1,5 +1,8 @@
 // system include files
 #include <memory>
+#include <cassert>
+#include <cmath>
+#include <cstdlib>
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -12,8 +15,8 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
-#include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/JetReco/interface/GenJet.h"
 
 #include "dataStructures.h"
 #include "constants.h"
@@ -50,24 +53,30 @@ private:
   TFile *outputFile_;
   int verbosity_;
 
-  // TTree* pairs_packedGenParticles_;
-  TTree* pairs_prunedGenParticles_;
-  // Information to store in these trees
-  // float packed_deltaR_;
-  // int packed_photonMom_pdgId_;
-  // float packed_photonPT_;
-  // int packed_otherParticle_pdgId_;
-  // int packed_otherParticleMom_pdgId_;
-  // float packed_otherParticlePT_;
-  float pruned_deltaR_;
-  int pruned_photonMom_pdgId_;
-  float pruned_photonPT_;
-  int pruned_otherParticle_pdgId_;
-  float pruned_otherParticlePT_;
-  int pruned_otherParticleMom_pdgId_;
+  TTree* eventInfoTree_;
+  int nStealthPhotons_;
+  int nKinematicStealthPhotons_;
 
-  // edm::EDGetTokenT<edm::View<pat::PackedGenParticle> > packedGenParticlesCollection_;
+  TTree* deltaRTree_;
+  float deltaR_closestGenJet_;
+  float deltaR_secondClosestGenJet_;
+  int photonMom_pdgId_;
+  float photonPT_;
+  float closestGenJet_PT_;
+  float closestGenJet_fraction_EM_;
+  float closestGenJet_fraction_hadronic_;
+  float closestGenJet_fraction_invisible_;
+  float closestGenJet_fraction_aux_;
+  float closestGenJet_totalFraction_; // for debugging only
+  float secondClosestGenJet_PT_;
+  float secondClosestGenJet_fraction_EM_;
+  float secondClosestGenJet_fraction_hadronic_;
+  float secondClosestGenJet_fraction_invisible_;
+  float secondClosestGenJet_fraction_aux_;
+  float secondClosestGenJet_totalFraction_; // for debugging only
+
   edm::EDGetTokenT<edm::View<reco::GenParticle> > prunedGenParticlesCollection_;
+  edm::EDGetTokenT<edm::View<reco::GenJet> > genJetsCollection_;
 };
 
 //
