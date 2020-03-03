@@ -8,6 +8,9 @@
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/one/EDAnalyzer.h"
 
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
+
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 
@@ -35,7 +38,7 @@
 // from  edm::one::EDAnalyzer<>
 // This will improve performance in multithreaded jobs.
 
-class GenLevelDeltaRAnalyzer : public edm::one::EDAnalyzer<>  {
+class GenLevelDeltaRAnalyzer : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
 public:
   explicit GenLevelDeltaRAnalyzer(const edm::ParameterSet&);
   ~GenLevelDeltaRAnalyzer();
@@ -49,15 +52,19 @@ private:
   virtual void endJob() override;
 
   // ----------member data ---------------------------
-  std::string outputPath_;
-  TFile *outputFile_;
+  std::string eventProgenitor_;
   int verbosity_;
 
   TTree* eventInfoTree_;
   int nStealthPhotons_;
   int nKinematicStealthPhotons_;
+  float eventProgenitorMass_;
+  float neutralinoMass_;
+  int nGenJets_;
 
   TTree* deltaRTree_;
+  float evt_eventProgenitorMass_;
+  float evt_neutralinoMass_;
   float deltaR_closestGenJet_;
   float deltaR_secondClosestGenJet_;
   int photonMom_pdgId_;

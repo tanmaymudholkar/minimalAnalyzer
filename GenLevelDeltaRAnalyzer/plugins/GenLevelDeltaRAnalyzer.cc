@@ -23,16 +23,22 @@
 // constructors and destructor
 //
 GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig) {
-  outputPath_ = iConfig.getUntrackedParameter<std::string>("outputPath");
-  outputFile_ = TFile::Open(outputPath_.c_str(), "RECREATE");
+  usesResource("TFileService");
+  edm::Service<TFileService> fileService;
+  eventProgenitor_ = iConfig.getUntrackedParameter<std::string>("eventProgenitor");
   verbosity_ = iConfig.getUntrackedParameter<int>("verbosity");
   edm::LogInfo("GenDeltaRAnalyzer") << "Starting GenLevelDeltaRAnalyzer with verbosity: " << verbosity_;
 
-  eventInfoTree_ = new TTree("eventInfoTree", "eventInfoTree");
+  eventInfoTree_ = fileService->make<TTree>("eventInfoTree", "eventInfoTree");
   eventInfoTree_->Branch("nStealthPhotons", &nStealthPhotons_, "nStealthPhotons/I");
   eventInfoTree_->Branch("nKinematicStealthPhotons", &nKinematicStealthPhotons_, "nKinematicStealthPhotons/I");
+  eventInfoTree_->Branch("eventProgenitorMass", &eventProgenitorMass_, "eventProgenitorMass/F");
+  eventInfoTree_->Branch("neutralinoMass", &neutralinoMass_, "neutralinoMass/F");
+  eventInfoTree_->Branch("nGenJets", &nGenJets_, "nGenJets/I");
 
-  deltaRTree_ = new TTree("deltaRTree", "deltaRTree");
+  deltaRTree_ = fileService->make<TTree>("deltaRTree", "deltaRTree");
+  deltaRTree_->Branch("evt_eventProgenitorMass", &evt_eventProgenitorMass_, "evt_eventProgenitorMass/F");
+  deltaRTree_->Branch("evt_neutralinoMass", &evt_neutralinoMass_, "evt_neutralinoMass/F");
   deltaRTree_->Branch("deltaR_closestGenJet", &deltaR_closestGenJet_, "deltaR_closestGenJet/F");
   deltaRTree_->Branch("deltaR_secondClosestGenJet", &deltaR_secondClosestGenJet_, "deltaR_secondClosestGenJet/F");
   deltaRTree_->Branch("photonMom_pdgId", &photonMom_pdgId_, "photonMom_pdgId/I");
@@ -57,9 +63,9 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
 
 GenLevelDeltaRAnalyzer::~GenLevelDeltaRAnalyzer()
 {
-  outputFile_->WriteTObject(eventInfoTree_);
-  outputFile_->WriteTObject(deltaRTree_);
-  outputFile_->Close();
+  // outputFile_->WriteTObject(eventInfoTree_);
+  // outputFile_->WriteTObject(deltaRTree_);
+  // outputFile_->Close();
 }
 
 
@@ -78,13 +84,15 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
 
   edm::Handle<edm::View<reco::GenJet> > genJetsHandle;
   iEvent.getByToken(genJetsCollection_, genJetsHandle);
-  int nGenJets = (*(genJetsHandle.product())).size();
-  if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Found " << nGenJets << " jets.";
+  nGenJets_ = (*(genJetsHandle.product())).size();
+  if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Found " << nGenJets_ << " jets.";
 
-  // First pass: make sure there are two stealth photons in EB with PT > 25.
+  // First pass: count stealth photons in EB with PT > 25, and set neutralino and event progenitor masses.
   std::vector<int> kinematicStealthPhotonIndices;
   nStealthPhotons_ = 0;
   nKinematicStealthPhotons_ = 0;
+  eventProgenitorMass_ = -1.0;
+  neutralinoMass_ = -1.0;
   for (int prunedParticleIndex = 0; prunedParticleIndex < nPrunedParticles; ++prunedParticleIndex) {
     const reco::GenParticle& prunedParticle = (*(prunedGenParticlesHandle.product())).at(prunedParticleIndex);
     if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "Found pruned particle at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pdgId: " << prunedParticle.pdgId();
@@ -93,19 +101,30 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       if (verbosity_ >= 3) edm::LogInfo("GenDeltaRAnalyzer") << "Found photon at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pT = " << prunedParticle.pt() << ", mom ID: " << prunedParticleMomID;
       if (PIDUtils::isNeutralinoPID(prunedParticleMomID)) {
 	++nStealthPhotons_;
+	assert(prunedParticle.mother(0) != nullptr);
+	if (neutralinoMass_ < 0.) neutralinoMass_ = prunedParticle.mother(0)->mass();
 	if ((prunedParticle.pt() >= 25.) && ((std::fabs(prunedParticle.eta())) < 1.442)) {
 	  ++nKinematicStealthPhotons_;
 	  kinematicStealthPhotonIndices.push_back(prunedParticleIndex);
 	}
       }
     }
+    else if (eventProgenitorMass_ < 0.) {
+      if (((eventProgenitor_ == "squark") && (PIDUtils::isSquarkPID(prunedParticle.pdgId()))) ||
+	  ((eventProgenitor_ == "gluino") && (PIDUtils::isGluinoPID(prunedParticle.pdgId())))) {
+	eventProgenitorMass_ = prunedParticle.mass();
+      }
+    }
   }
+  if (neutralinoMass_ > 0.) assert(eventProgenitorMass_ > 0.);
   eventInfoTree_->Fill();
   assert(nStealthPhotons_ <= 2);
 
   if (!(nKinematicStealthPhotons_ == 2)) return;
   assert(kinematicStealthPhotonIndices.size() == static_cast<unsigned int>(2));
 
+  evt_eventProgenitorMass_ = eventProgenitorMass_;
+  evt_neutralinoMass_ = neutralinoMass_;
   for (const int& photonIndex: kinematicStealthPhotonIndices) {
     const reco::GenParticle& prunedStealthPhoton = (*(prunedGenParticlesHandle.product())).at(photonIndex);
 
@@ -116,7 +135,7 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     deltaR_secondClosestGenJet_ = -0.1;
     int index_closestGenJet = -1;
     int index_secondClosestGenJet = -1;
-    for (int genJetIndex = 0; genJetIndex < nGenJets; ++genJetIndex) {
+    for (int genJetIndex = 0; genJetIndex < nGenJets_; ++genJetIndex) {
       const reco::GenJet& genJet = (*(genJetsHandle.product())).at(genJetIndex);
       angularVariablesStruct genJetEtaPhi = angularVariablesStruct(genJet.eta(), genJet.phi());
       float deltaR = photonEtaPhi.get_deltaR(genJetEtaPhi);
