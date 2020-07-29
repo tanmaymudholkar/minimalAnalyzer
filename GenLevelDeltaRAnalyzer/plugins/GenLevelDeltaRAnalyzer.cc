@@ -34,6 +34,7 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
   eventInfoTree_->Branch("nKinematicStealthPhotons", &nKinematicStealthPhotons_, "nKinematicStealthPhotons/I");
   eventInfoTree_->Branch("eventProgenitorMass", &eventProgenitorMass_, "eventProgenitorMass/F");
   eventInfoTree_->Branch("neutralinoMass", &neutralinoMass_, "neutralinoMass/F");
+  eventInfoTree_->Branch("deltaR_photonPair", &deltaR_photonPair_, "deltaR_photonPair/F");
   eventInfoTree_->Branch("nGenJets", &nGenJets_, "nGenJets/I");
 
   deltaRTree_ = fileService->make<TTree>("deltaRTree", "deltaRTree");
@@ -119,6 +120,16 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     }
   }
   if (neutralinoMass_ > 0.) assert(eventProgenitorMass_ > 0.);
+  deltaR_photonPair_ = DEFAULT_DELTAR;
+  if (nKinematicStealthPhotons_ == 2) {
+    int index_photon1 = kinematicStealthPhotonIndices.at(0);
+    int index_photon2 = kinematicStealthPhotonIndices.at(1);
+    const reco::GenParticle& photon1 = (*(prunedGenParticlesHandle.product())).at(index_photon1);
+    const reco::GenParticle& photon2 = (*(prunedGenParticlesHandle.product())).at(index_photon2);
+    angularVariablesStruct photon1_EtaPhi = angularVariablesStruct(photon1.eta(), photon1.phi());
+    angularVariablesStruct photon2_EtaPhi = angularVariablesStruct(photon2.eta(), photon2.phi());
+    deltaR_photonPair_ = photon1_EtaPhi.get_deltaR(photon2_EtaPhi);
+  }
   eventInfoTree_->Fill();
   assert(nStealthPhotons_ <= 2);
 
@@ -133,8 +144,8 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     angularVariablesStruct photonEtaPhi = angularVariablesStruct(prunedStealthPhoton.eta(), prunedStealthPhoton.phi());
     photonMom_pdgId_ = ((prunedStealthPhoton.mother(0) == nullptr) ? 0 : prunedStealthPhoton.mother(0)->pdgId()); // just a sanity check...
     photonPT_ = prunedStealthPhoton.pt();
-    deltaR_closestGenJet_ = -0.1;
-    deltaR_secondClosestGenJet_ = -0.1;
+    deltaR_closestGenJet_ = DEFAULT_DELTAR;
+    deltaR_secondClosestGenJet_ = DEFAULT_DELTAR;
     int index_closestGenJet = -1;
     int index_secondClosestGenJet = -1;
     for (int genJetIndex = 0; genJetIndex < nGenJets_; ++genJetIndex) {

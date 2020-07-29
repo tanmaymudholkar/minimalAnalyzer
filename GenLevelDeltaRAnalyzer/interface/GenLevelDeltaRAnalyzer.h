@@ -29,6 +29,8 @@
 #include "TFile.h"
 #include "TTree.h"
 
+#define DEFAULT_DELTAR -0.1
+
 //
 // class declaration
 //
@@ -60,6 +62,7 @@ private:
   int nKinematicStealthPhotons_;
   float eventProgenitorMass_;
   float neutralinoMass_;
+  float deltaR_photonPair_;
   int nGenJets_;
 
   TTree* deltaRTree_;
