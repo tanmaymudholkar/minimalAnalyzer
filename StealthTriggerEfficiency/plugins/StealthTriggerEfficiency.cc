@@ -36,6 +36,7 @@ StealthTriggerEfficiency::StealthTriggerEfficiency(const edm::ParameterSet& iCon
   eventInfoTree_->Branch("pT_subLeadingPhoton", &pT_subLeadingPhoton_, "pT_subLeadingPhoton/F");
   eventInfoTree_->Branch("eta_subLeadingPhoton", &eta_subLeadingPhoton_, "eta_subLeadingPhoton/F");
   eventInfoTree_->Branch("phi_subLeadingPhoton", &phi_subLeadingPhoton_, "phi_subLeadingPhoton/F");
+  eventInfoTree_->Branch("invariantMass", &invariantMass_, "invariantMass/F");
   eventInfoTree_->Branch("passesSelection", &passesSelection_, "passesSelection/O");
   for (unsigned int patternIndex = 0; patternIndex < (triggerPatterns::patternsToSave).size(); ++patternIndex) {
     std::string branchName = "passesTrigger_patternIndex_" + std::to_string(patternIndex);
@@ -90,6 +91,7 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
   pT_subLeadingPhoton_ = -9.;
   eta_subLeadingPhoton_ = -9.;
   phi_subLeadingPhoton_ = -9.;
+  invariantMass_ = -9.;
   passesSelection_ = false;
   for (unsigned int patternIndex = 0; patternIndex < (triggerPatterns::patternsToSave).size(); ++patternIndex) {
     passesTrigger_[patternIndex] = false;
@@ -168,15 +170,19 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
   }
   if (pT_leadingPhoton_ > 0.) assert(pT_leadingPhoton_ >= pT_subLeadingPhoton_);
 
-  TLorentzVector leadingPhoton4Vector;
-  if (pT_leadingPhoton_ > 0.) leadingPhoton4Vector.SetPtEtaPhiE(pT_leadingPhoton_, eta_leadingPhoton_, phi_leadingPhoton_, pT_leadingPhoton_);
-  TLorentzVector subLeadingPhoton4Vector;
-  if (pT_subLeadingPhoton_ > 0.) subLeadingPhoton4Vector.SetPtEtaPhiE(pT_subLeadingPhoton_, eta_subLeadingPhoton_, phi_subLeadingPhoton_, pT_subLeadingPhoton_);
-  TLorentzVector candidateParent4Vector = leadingPhoton4Vector + subLeadingPhoton4Vector;
+  if ((pT_leadingPhoton_ > photonCuts::pTLeading) &&
+      (pT_subLeadingPhoton_ > photonCuts::pTSubleading)) {
+    TLorentzVector leadingPhoton4Vector;
+    leadingPhoton4Vector.SetPtEtaPhiE(pT_leadingPhoton_, eta_leadingPhoton_, phi_leadingPhoton_, pT_leadingPhoton_);
+    TLorentzVector subLeadingPhoton4Vector;
+    subLeadingPhoton4Vector.SetPtEtaPhiE(pT_subLeadingPhoton_, eta_subLeadingPhoton_, phi_subLeadingPhoton_, pT_subLeadingPhoton_);
+    TLorentzVector candidateParent4Vector = leadingPhoton4Vector + subLeadingPhoton4Vector;
+    invariantMass_ = candidateParent4Vector.M();
+  }
 
   passesSelection_ = ((pT_leadingPhoton_ > photonCuts::pTLeading) &&
                       (pT_subLeadingPhoton_ > photonCuts::pTSubleading) &&
-                      (candidateParent4Vector.M() > photonCuts::invariantMass));
+                      (invariantMass_ > photonCuts::invariantMass));
 
   edm::Handle<edm::TriggerResults> triggerHandle;
   iEvent.getByToken(triggerCollection_, triggerHandle);
