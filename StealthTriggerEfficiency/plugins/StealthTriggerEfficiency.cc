@@ -29,6 +29,7 @@ StealthTriggerEfficiency::StealthTriggerEfficiency(const edm::ParameterSet& iCon
   edm::LogInfo("StealthTriggerEfficiency") << "Starting StealthTriggerEfficiency with verbosity: " << verbosity_;
 
   eventInfoTree_ = fileService->make<TTree>("eventInfoTree", "eventInfoTree");
+  eventInfoTree_->Branch("eventRho", &eventRho_, "eventRho/F");
   eventInfoTree_->Branch("pT_leadingPhoton", &pT_leadingPhoton_, "pT_leadingPhoton/F");
   eventInfoTree_->Branch("eta_leadingPhoton", &eta_leadingPhoton_, "eta_leadingPhoton/F");
   eventInfoTree_->Branch("pT_subLeadingPhoton", &pT_subLeadingPhoton_, "pT_subLeadingPhoton/F");
@@ -36,6 +37,7 @@ StealthTriggerEfficiency::StealthTriggerEfficiency(const edm::ParameterSet& iCon
   eventInfoTree_->Branch("passesSelection", &passesSelection_, "passesSelection/O");
   eventInfoTree_->Branch("passesTrigger", &passesTrigger_, "passesTrigger/O");
 
+  rhoCollection_ = consumes<double>(iConfig.getParameter<edm::InputTag>("rhoCollection"));
   photonCollection_ = consumes<edm::View<pat::Photon> >(iConfig.getParameter<edm::InputTag>("photonSrc"));
 }
 
@@ -48,10 +50,35 @@ StealthTriggerEfficiency::~StealthTriggerEfficiency() {
 // member functions
 //
 
+float
+StealthTriggerEfficiency::getEffectiveArea_neutIso(const float& absEta) {
+  if (absEta < 1.0) return (EAValues::neutIso_central);
+  else if (absEta < 1.479) return (EAValues::neutIso_peripheral);
+  return 0.;
+}
+
+float
+StealthTriggerEfficiency::getEffectiveArea_phoIso(const float& absEta) {
+  if (absEta < 1.0) return (EAValues::phoIso_central);
+  else if (absEta < 1.479) return (EAValues::phoIso_peripheral);
+  return 0.;
+}
+
+float
+StealthTriggerEfficiency::getEffectiveArea_chIso(const float& absEta) {
+  if (absEta < 1.0) return (EAValues::chIso_central);
+  else if (absEta < 1.479) return (EAValues::chIso_peripheral);
+  return 0.;
+}
+
 // ------------ method called for each event  ------------
 void
 StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
+  edm::Handle<double> rhoHandle;
+  iEvent.getByToken(rhoCollection_, rhoHandle);
+  eventRho_ = *(rhoHandle.product());
+
   edm::Handle<edm::View<pat::Photon> > photonHandle;
   iEvent.getByToken(photonCollection_, photonHandle);
 
@@ -68,10 +95,61 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
   passesSelection_ = false;
   passesTrigger_ = false;
 
-  // for (edm::View<pat::Photon>::const_iterator edmPhoton = photonHandle->begin(); edmPhoton != photonHandle->end(); ++edmPhoton) {
-  //   float photon_pT = edmPhoton->et();
-  //   float photon_eta = edmPhoton->eta();
-  // }
+  for (edm::View<pat::Photon>::const_iterator edmPhoton = photonHandle->begin(); edmPhoton != photonHandle->end(); ++edmPhoton) {
+    float photon_pT = edmPhoton->et();
+
+    float photon_eta = edmPhoton->eta();
+    float photon_abs_eta = std::fabs(photon_eta);
+    bool inBarrel = (photon_abs_eta < photonCuts::eta);
+
+    bool passes_electronVeto = edmPhoton->passElectronVeto();
+
+    float photon_hOverE = edmPhoton->hadTowOverEm();
+    bool passes_hOverE = (photon_hOverE < photonCuts::hOverE);
+
+    float photon_sigma_ieta_ieta = edmPhoton->full5x5_sigmaIetaIeta();
+    bool passes_sigma_ieta_ieta = (photon_sigma_ieta_ieta < photonCuts::sigma_ieta_ieta);
+
+    float photon_neutIso_uncorrected = edmPhoton->userFloat("phoNeutralHadronIsolation");
+    float photon_neutIso = std::max(0.0f, photon_neutIso_uncorrected - eventRho_*getEffectiveArea_neutIso(photon_abs_eta));
+    bool passes_neutIso = (photon_neutIso < ((photonCuts::neutIso_const) + photon_pT*(photonCuts::neutIso_lin) + photon_pT*photon_pT*(photonCuts::neutIso_quad)));
+
+    float photon_phoIso_uncorrected = edmPhoton->userFloat("phoPhotonIsolation");
+    float photon_phoIso = std::max(0.0f, photon_phoIso_uncorrected - eventRho_*getEffectiveArea_phoIso(photon_abs_eta));
+    bool passes_phoIso = (photon_phoIso < ((photonCuts::phoIso_const) + photon_pT*(photonCuts::phoIso_lin)));
+
+    float photon_chIso_uncorrected = edmPhoton->userFloat("phoChargedIsolation");
+    float photon_chIso = std::max(0.0f, photon_chIso_uncorrected - eventRho_*getEffectiveArea_phoIso(photon_abs_eta));
+    float passes_chIso = (photon_chIso < (photonCuts::chIso));
+
+    if (inBarrel &&
+        passes_electronVeto &&
+        passes_hOverE &&
+        passes_sigma_ieta_ieta &&
+        passes_neutIso &&
+        passes_phoIso &&
+        passes_chIso) {
+      // check pT
+      if (photon_pT >= pT_leadingPhoton_) {
+        // current leading photon becomes new subleading photon
+        pT_subLeadingPhoton_ = pT_leadingPhoton_;
+        eta_subLeadingPhoton_ = eta_leadingPhoton_;
+
+        // this photon becomes new leading photon
+        pT_leadingPhoton_ = photon_pT;
+        eta_leadingPhoton_ = photon_eta;
+      }
+      else if (photon_pT >= pT_subLeadingPhoton_) {
+        // this photon becomes new subleading photon
+        pT_subLeadingPhoton_ = photon_pT;
+        eta_subLeadingPhoton_ = photon_eta;
+      }
+    }
+  }
+  if (pT_leadingPhoton_ > 0.) assert(pT_leadingPhoton_ >= pT_subLeadingPhoton_);
+  passesSelection_ = ((pT_leadingPhoton_ > photonCuts::pTLeading) &&
+                      (pT_subLeadingPhoton_ > photonCuts::pTSubleading));
+  passesTrigger_ = false;
   eventInfoTree_->Fill();
 }
 

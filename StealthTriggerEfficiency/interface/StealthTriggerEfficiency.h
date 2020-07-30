@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <algorithm>
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -47,11 +48,15 @@ private:
   virtual void beginJob() override;
   virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
   virtual void endJob() override;
+  float getEffectiveArea_neutIso(const float&);
+  float getEffectiveArea_phoIso(const float&);
+  float getEffectiveArea_chIso(const float&);
 
   // ----------member data ---------------------------
   int verbosity_;
 
   TTree* eventInfoTree_;
+  float eventRho_;
   float pT_leadingPhoton_;
   float eta_leadingPhoton_;
   float pT_subLeadingPhoton_;
@@ -60,6 +65,7 @@ private:
   bool passesTrigger_;
 
   edm::EDGetTokenT<edm::View<pat::Photon> > photonCollection_;
+  edm::EDGetTokenT<double> rhoCollection_;
 };
 
 //
