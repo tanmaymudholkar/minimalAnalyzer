@@ -35,9 +35,14 @@ StealthTriggerEfficiency::StealthTriggerEfficiency(const edm::ParameterSet& iCon
   eventInfoTree_->Branch("pT_subLeadingPhoton", &pT_subLeadingPhoton_, "pT_subLeadingPhoton/F");
   eventInfoTree_->Branch("eta_subLeadingPhoton", &eta_subLeadingPhoton_, "eta_subLeadingPhoton/F");
   eventInfoTree_->Branch("passesSelection", &passesSelection_, "passesSelection/O");
-  eventInfoTree_->Branch("passesTrigger", &passesTrigger_, "passesTrigger/O");
+  for (unsigned int patternIndex = 0; patternIndex < (triggerPatterns::patternsToSave).size(); ++patternIndex) {
+    std::string branchName = "passesTrigger_patternIndex_" + std::to_string(patternIndex);
+    passesTrigger_[patternIndex] = false;
+    eventInfoTree_->Branch(branchName.c_str(), &(passesTrigger_[patternIndex]), (branchName + "/O").c_str());
+  }
 
   rhoCollection_ = consumes<double>(iConfig.getParameter<edm::InputTag>("rhoCollection"));
+  triggerCollection_ = consumes<edm::TriggerResults>(iConfig.getParameter<edm::InputTag>("triggerCollection"));
   photonCollection_ = consumes<edm::View<pat::Photon> >(iConfig.getParameter<edm::InputTag>("photonSrc"));
 }
 
@@ -75,25 +80,31 @@ StealthTriggerEfficiency::getEffectiveArea_chIso(const float& absEta) {
 void
 StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
-  edm::Handle<double> rhoHandle;
-  iEvent.getByToken(rhoCollection_, rhoHandle);
-  eventRho_ = *(rhoHandle.product());
-
-  edm::Handle<edm::View<pat::Photon> > photonHandle;
-  iEvent.getByToken(photonCollection_, photonHandle);
-
-  if (!photonHandle.isValid()) {
-    edm::LogWarning("MinimalMiniAODAnalyzer") << "no pat::Photons in event";
-    return;
-  }
-
   // set event variables to default values
+  eventRho_ = -9.;
   pT_leadingPhoton_ = -9.;
   eta_leadingPhoton_ = -9.;
   pT_subLeadingPhoton_ = -9.;
   eta_subLeadingPhoton_ = -9.;
   passesSelection_ = false;
-  passesTrigger_ = false;
+  for (unsigned int patternIndex = 0; patternIndex < (triggerPatterns::patternsToSave).size(); ++patternIndex) {
+    passesTrigger_[patternIndex] = false;
+  }
+
+  edm::Handle<double> rhoHandle;
+  iEvent.getByToken(rhoCollection_, rhoHandle);
+  if (!rhoHandle.isValid()) {
+    edm::LogWarning("StealthTriggerEfficiency") << "rho unavailable in event";
+    return;
+  }
+  eventRho_ = *(rhoHandle.product());
+
+  edm::Handle<edm::View<pat::Photon> > photonHandle;
+  iEvent.getByToken(photonCollection_, photonHandle);
+  if (!photonHandle.isValid()) {
+    edm::LogWarning("StealthTriggerEfficiency") << "no pat::Photons in event";
+    return;
+  }
 
   for (edm::View<pat::Photon>::const_iterator edmPhoton = photonHandle->begin(); edmPhoton != photonHandle->end(); ++edmPhoton) {
     float photon_pT = edmPhoton->et();
@@ -149,7 +160,31 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
   if (pT_leadingPhoton_ > 0.) assert(pT_leadingPhoton_ >= pT_subLeadingPhoton_);
   passesSelection_ = ((pT_leadingPhoton_ > photonCuts::pTLeading) &&
                       (pT_subLeadingPhoton_ > photonCuts::pTSubleading));
-  passesTrigger_ = false;
+
+  edm::Handle<edm::TriggerResults> triggerHandle;
+  iEvent.getByToken(triggerCollection_, triggerHandle);
+  edm::TriggerNames triggerNames = iEvent.triggerNames(*triggerHandle);
+  if (verbosity_ > 1) edm::LogInfo("StealthTriggerEfficiency") << "N_triggers: " << triggerHandle->size();
+  for (unsigned int trigIndex = 0; trigIndex < triggerHandle->size(); ++trigIndex) {
+    if (verbosity_ > 2) edm::LogInfo("StealthTriggerEfficiency") << "name[" << trigIndex << "]:" << triggerNames.triggerName(trigIndex);
+  }
+
+  for (unsigned int patternIndex = 0; patternIndex < (triggerPatterns::patternsToSave).size(); ++patternIndex) {
+    const std::string& triggerName = (triggerPatterns::patternsToSave)[patternIndex];
+    std::vector< std::vector<std::string>::const_iterator > triggerMatches = edm::regexMatch(triggerNames.triggerNames(), triggerName);
+    if (verbosity_ > 1) edm::LogInfo("StealthTriggerEfficiency") << "For trigger with name: " << triggerName << ", N_matches: " << triggerMatches.size();
+    bool passes_trigger = false;
+    if (!(triggerMatches.empty())) {
+      for (auto const& trigIndex : triggerMatches) {
+        if (triggerHandle->accept(triggerNames.triggerIndex(*trigIndex))) {
+          passes_trigger = true;
+          break;
+        };
+      }
+    }
+    passesTrigger_[patternIndex] = passes_trigger;
+  }
+
   eventInfoTree_->Fill();
 }
 

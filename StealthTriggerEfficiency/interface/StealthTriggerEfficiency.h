@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
+#include <string>
+#include <array>
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -19,9 +21,13 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
+#include "DataFormats/Common/interface/TriggerResults.h"
+#include "FWCore/Utilities/interface/RegexMatch.h"
+#include "FWCore/Common/interface/TriggerNames.h"
 #include "DataFormats/PatCandidates/interface/Photon.h"
 
 #include "constants.h"
+#include "triggers.h"
 
 #include "TMath.h"
 #include "TFile.h"
@@ -62,10 +68,11 @@ private:
   float pT_subLeadingPhoton_;
   float eta_subLeadingPhoton_;
   bool passesSelection_;
-  bool passesTrigger_;
+  std::array<bool, (triggerPatterns::patternsToSave).size()> passesTrigger_;
 
-  edm::EDGetTokenT<edm::View<pat::Photon> > photonCollection_;
   edm::EDGetTokenT<double> rhoCollection_;
+  edm::EDGetTokenT<edm::TriggerResults> triggerCollection_;
+  edm::EDGetTokenT<edm::View<pat::Photon> > photonCollection_;
 };
 
 //
