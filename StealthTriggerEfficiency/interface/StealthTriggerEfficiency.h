@@ -65,8 +65,10 @@ private:
   float eventRho_;
   float pT_leadingPhoton_;
   float eta_leadingPhoton_;
+  float phi_leadingPhoton_;
   float pT_subLeadingPhoton_;
   float eta_subLeadingPhoton_;
+  float phi_subLeadingPhoton_;
   bool passesSelection_;
   std::array<bool, (triggerPatterns::patternsToSave).size()> passesTrigger_;
 

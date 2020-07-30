@@ -2,6 +2,7 @@
 #define H_CONSTANTS
 
 #include "TMath.h"
+#include "TLorentzVector.h"
 
 namespace constants{ // for readability
   const float PI = static_cast<float>(TMath::Pi());
@@ -29,6 +30,7 @@ namespace photonCuts{
   const float phoIso_const = 2.08f;
   const float phoIso_lin = 0.004017f;
   const float chIso = 1.141f;
+  const float invariantMass = 60.0f;
 }
 
 #endif
