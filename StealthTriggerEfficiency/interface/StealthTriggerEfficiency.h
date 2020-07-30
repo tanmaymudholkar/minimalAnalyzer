@@ -66,9 +66,11 @@ private:
   float pT_leadingPhoton_;
   float eta_leadingPhoton_;
   float phi_leadingPhoton_;
+  float energy_leadingPhoton_;
   float pT_subLeadingPhoton_;
   float eta_subLeadingPhoton_;
   float phi_subLeadingPhoton_;
+  float energy_subLeadingPhoton_;
   float invariantMass_;
   bool passesSelection_;
   std::array<bool, (triggerPatterns::patternsToSave).size()> passesTrigger_;

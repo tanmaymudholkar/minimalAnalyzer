@@ -33,9 +33,11 @@ StealthTriggerEfficiency::StealthTriggerEfficiency(const edm::ParameterSet& iCon
   eventInfoTree_->Branch("pT_leadingPhoton", &pT_leadingPhoton_, "pT_leadingPhoton/F");
   eventInfoTree_->Branch("eta_leadingPhoton", &eta_leadingPhoton_, "eta_leadingPhoton/F");
   eventInfoTree_->Branch("phi_leadingPhoton", &phi_leadingPhoton_, "phi_leadingPhoton/F");
+  eventInfoTree_->Branch("energy_leadingPhoton", &energy_leadingPhoton_, "energy_leadingPhoton/F");
   eventInfoTree_->Branch("pT_subLeadingPhoton", &pT_subLeadingPhoton_, "pT_subLeadingPhoton/F");
   eventInfoTree_->Branch("eta_subLeadingPhoton", &eta_subLeadingPhoton_, "eta_subLeadingPhoton/F");
   eventInfoTree_->Branch("phi_subLeadingPhoton", &phi_subLeadingPhoton_, "phi_subLeadingPhoton/F");
+  eventInfoTree_->Branch("energy_subLeadingPhoton", &energy_subLeadingPhoton_, "energy_subLeadingPhoton/F");
   eventInfoTree_->Branch("invariantMass", &invariantMass_, "invariantMass/F");
   eventInfoTree_->Branch("passesSelection", &passesSelection_, "passesSelection/O");
   for (unsigned int patternIndex = 0; patternIndex < (triggerPatterns::patternsToSave).size(); ++patternIndex) {
@@ -88,9 +90,11 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
   pT_leadingPhoton_ = -9.;
   eta_leadingPhoton_ = -9.;
   phi_leadingPhoton_ = -9.;
+  energy_leadingPhoton_ = -9.;
   pT_subLeadingPhoton_ = -9.;
   eta_subLeadingPhoton_ = -9.;
   phi_subLeadingPhoton_ = -9.;
+  energy_subLeadingPhoton_ = -9.;
   invariantMass_ = -9.;
   passesSelection_ = false;
   for (unsigned int patternIndex = 0; patternIndex < (triggerPatterns::patternsToSave).size(); ++patternIndex) {
@@ -119,6 +123,7 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
     float photon_abs_eta = std::fabs(photon_eta);
     bool inBarrel = (photon_abs_eta < photonCuts::eta);
 
+    float photon_energy = edmPhoton->energy();
     float photon_phi = edmPhoton->phi();
 
     bool passes_electronVeto = edmPhoton->passElectronVeto();
@@ -154,17 +159,20 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
         pT_subLeadingPhoton_ = pT_leadingPhoton_;
         eta_subLeadingPhoton_ = eta_leadingPhoton_;
         phi_subLeadingPhoton_ = phi_leadingPhoton_;
+        energy_subLeadingPhoton_ = energy_leadingPhoton_;
 
         // this photon becomes new leading photon
         pT_leadingPhoton_ = photon_pT;
         eta_leadingPhoton_ = photon_eta;
         phi_leadingPhoton_ = photon_phi;
+        energy_leadingPhoton_ = photon_energy;
       }
       else if (photon_pT >= pT_subLeadingPhoton_) {
         // this photon becomes new subleading photon
         pT_subLeadingPhoton_ = photon_pT;
         eta_subLeadingPhoton_ = photon_eta;
         phi_subLeadingPhoton_ = photon_phi;
+        energy_subLeadingPhoton_ = photon_energy;
       }
     }
   }
@@ -173,9 +181,9 @@ StealthTriggerEfficiency::analyze(const edm::Event& iEvent, const edm::EventSetu
   if ((pT_leadingPhoton_ > photonCuts::pTLeading) &&
       (pT_subLeadingPhoton_ > photonCuts::pTSubleading)) {
     TLorentzVector leadingPhoton4Vector;
-    leadingPhoton4Vector.SetPtEtaPhiE(pT_leadingPhoton_, eta_leadingPhoton_, phi_leadingPhoton_, pT_leadingPhoton_);
+    leadingPhoton4Vector.SetPtEtaPhiE(pT_leadingPhoton_, eta_leadingPhoton_, phi_leadingPhoton_, energy_leadingPhoton_);
     TLorentzVector subLeadingPhoton4Vector;
-    subLeadingPhoton4Vector.SetPtEtaPhiE(pT_subLeadingPhoton_, eta_subLeadingPhoton_, phi_subLeadingPhoton_, pT_subLeadingPhoton_);
+    subLeadingPhoton4Vector.SetPtEtaPhiE(pT_subLeadingPhoton_, eta_subLeadingPhoton_, phi_subLeadingPhoton_, energy_subLeadingPhoton_);
     TLorentzVector candidateParent4Vector = leadingPhoton4Vector + subLeadingPhoton4Vector;
     invariantMass_ = candidateParent4Vector.M();
   }
