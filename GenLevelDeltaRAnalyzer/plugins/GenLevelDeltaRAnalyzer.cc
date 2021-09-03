@@ -32,8 +32,11 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
   eventInfoTree_ = fileService->make<TTree>("eventInfoTree", "eventInfoTree");
   eventInfoTree_->Branch("nStealthPhotons", &nStealthPhotons_, "nStealthPhotons/I");
   eventInfoTree_->Branch("nKinematicStealthPhotons", &nKinematicStealthPhotons_, "nKinematicStealthPhotons/I");
+  eventInfoTree_->Branch("nEnergeticStealthPhotons", &nEnergeticStealthPhotons_, "nEnergeticStealthPhotons/I");
   eventInfoTree_->Branch("eventProgenitorMass", &eventProgenitorMass_, "eventProgenitorMass/F");
   eventInfoTree_->Branch("neutralinoMass", &neutralinoMass_, "neutralinoMass/F");
+  eventInfoTree_->Branch("eta_photon_leading", &eta_photon_leading_, "eta_photon_leading/F");
+  eventInfoTree_->Branch("eta_photon_subleading", &eta_photon_subleading_, "eta_photon_subleading/F");
   eventInfoTree_->Branch("deltaR_photonPair", &deltaR_photonPair_, "deltaR_photonPair/F");
   eventInfoTree_->Branch("nGenJets", &nGenJets_, "nGenJets/I");
 
@@ -90,10 +93,14 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
 
   // First pass: count stealth photons in EB with PT > 25, and set neutralino and event progenitor masses.
   std::vector<int> kinematicStealthPhotonIndices;
+  std::vector<int> energeticStealthPhotonIndices;
   nStealthPhotons_ = 0;
   nKinematicStealthPhotons_ = 0;
+  nEnergeticStealthPhotons_ = 0;
   eventProgenitorMass_ = -1.0;
   neutralinoMass_ = -1.0;
+  eta_photon_leading_ = -99.0;
+  eta_photon_subleading_ = -99.0;
   for (int prunedParticleIndex = 0; prunedParticleIndex < nPrunedParticles; ++prunedParticleIndex) {
     const reco::GenParticle& prunedParticle = (*(prunedGenParticlesHandle.product())).at(prunedParticleIndex);
     if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "Found pruned particle at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pdgId: " << prunedParticle.pdgId();
@@ -107,6 +114,10 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
 	if ((prunedParticle.pt() >= 25.) && ((std::fabs(prunedParticle.eta())) < 1.442)) {
 	  ++nKinematicStealthPhotons_;
 	  kinematicStealthPhotonIndices.push_back(prunedParticleIndex);
+	}
+	if (prunedParticle.pt() >= 25.) {
+	  ++nEnergeticStealthPhotons_;
+	  energeticStealthPhotonIndices.push_back(prunedParticleIndex);
 	}
       }
     }
@@ -129,6 +140,23 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     angularVariablesStruct photon1_EtaPhi = angularVariablesStruct(photon1.eta(), photon1.phi());
     angularVariablesStruct photon2_EtaPhi = angularVariablesStruct(photon2.eta(), photon2.phi());
     deltaR_photonPair_ = photon1_EtaPhi.get_deltaR(photon2_EtaPhi);
+  }
+
+  if (nEnergeticStealthPhotons_ == 2) {
+    int index_photon1 = energeticStealthPhotonIndices.at(0);
+    int index_photon2 = energeticStealthPhotonIndices.at(1);
+    const reco::GenParticle& photon1 = (*(prunedGenParticlesHandle.product())).at(index_photon1);
+    const reco::GenParticle& photon2 = (*(prunedGenParticlesHandle.product())).at(index_photon2);
+    float ET_photon1 = photon1.pt();
+    float ET_photon2 = photon2.pt();
+    if (ET_photon1 > ET_photon2) {
+      eta_photon_leading_ = photon1.eta();
+      eta_photon_subleading_ = photon2.eta();
+    }
+    else {
+      eta_photon_leading_ = photon2.eta();
+      eta_photon_subleading_ = photon1.eta();
+    }
   }
   eventInfoTree_->Fill();
   assert(nStealthPhotons_ <= 2);

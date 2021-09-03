@@ -60,8 +60,11 @@ private:
   TTree* eventInfoTree_;
   int nStealthPhotons_;
   int nKinematicStealthPhotons_;
+  int nEnergeticStealthPhotons_;
   float eventProgenitorMass_;
   float neutralinoMass_;
+  float eta_photon_leading_;
+  float eta_photon_subleading_;
   float deltaR_photonPair_;
   int nGenJets_;
 
