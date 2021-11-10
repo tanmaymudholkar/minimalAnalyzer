@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <string>
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -52,17 +53,23 @@ private:
   virtual void beginJob() override;
   virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
   virtual void endJob() override;
+  std::string daughter_pdgIds(const reco::GenParticle& particle);
+  std::string mother_pdgIds(const reco::GenParticle& particle);
 
   // ----------member data ---------------------------
   std::string eventProgenitor_;
   int verbosity_;
 
   TTree* eventInfoTree_;
+  int nGenPhotons_;
   int nStealthPhotons_;
   int nKinematicStealthPhotons_;
   int nEnergeticStealthPhotons_;
   float eventProgenitorMass_;
   float neutralinoMass_;
+  std::vector<float> eta_progenitor_;
+  std::vector<float> eta_neutralino_progenitor_child_;
+  std::vector<float> eta_neutralino_photon_mother_;
   float eta_photon_leading_;
   float eta_photon_subleading_;
   float deltaR_photonPair_;

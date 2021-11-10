@@ -35,6 +35,9 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
   eventInfoTree_->Branch("nEnergeticStealthPhotons", &nEnergeticStealthPhotons_, "nEnergeticStealthPhotons/I");
   eventInfoTree_->Branch("eventProgenitorMass", &eventProgenitorMass_, "eventProgenitorMass/F");
   eventInfoTree_->Branch("neutralinoMass", &neutralinoMass_, "neutralinoMass/F");
+  eventInfoTree_->Branch("eta_progenitor", &eta_progenitor_);
+  eventInfoTree_->Branch("eta_neutralino_progenitor_child", &eta_neutralino_progenitor_child_);
+  eventInfoTree_->Branch("eta_neutralino_photon_mother", &eta_neutralino_photon_mother_);
   eventInfoTree_->Branch("eta_photon_leading", &eta_photon_leading_, "eta_photon_leading/F");
   eventInfoTree_->Branch("eta_photon_subleading", &eta_photon_subleading_, "eta_photon_subleading/F");
   eventInfoTree_->Branch("deltaR_photonPair", &deltaR_photonPair_, "deltaR_photonPair/F");
@@ -72,6 +75,23 @@ GenLevelDeltaRAnalyzer::~GenLevelDeltaRAnalyzer()
   // outputFile_->Close();
 }
 
+std::string
+GenLevelDeltaRAnalyzer::daughter_pdgIds(const reco::GenParticle& particle) {
+  std::string out = "";
+  for (int daughter_index = 0; daughter_index < static_cast<int>(particle.numberOfDaughters()); ++daughter_index) {
+    out += (std::to_string((particle.daughter(daughter_index))->pdgId()) + "  ");
+  }
+  return out;
+}
+
+std::string
+GenLevelDeltaRAnalyzer::mother_pdgIds(const reco::GenParticle& particle) {
+  std::string out = "";
+  for (int mother_index = 0; mother_index < static_cast<int>(particle.numberOfMothers()); ++mother_index) {
+    out += (std::to_string((particle.mother(mother_index))->pdgId()) + "  ");
+  }
+  return out;
+}
 
 //
 // member functions
@@ -94,39 +114,86 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   // First pass: count stealth photons in EB with PT > 25, and set neutralino and event progenitor masses.
   std::vector<int> kinematicStealthPhotonIndices;
   std::vector<int> energeticStealthPhotonIndices;
+  std::vector<int> indices_progenitor;
+  std::vector<int> indices_neutralino_progenitor_child;
+  std::vector<int> indices_neutralino_photon_mother;
   nStealthPhotons_ = 0;
   nKinematicStealthPhotons_ = 0;
   nEnergeticStealthPhotons_ = 0;
   eventProgenitorMass_ = -1.0;
   neutralinoMass_ = -1.0;
-  eta_photon_leading_ = -99.0;
-  eta_photon_subleading_ = -99.0;
   for (int prunedParticleIndex = 0; prunedParticleIndex < nPrunedParticles; ++prunedParticleIndex) {
     const reco::GenParticle& prunedParticle = (*(prunedGenParticlesHandle.product())).at(prunedParticleIndex);
+    if (PIDUtils::isNeutralinoPID(prunedParticle.pdgId())) {
+      // check if photon is among daughters
+      if (prunedParticle.numberOfDaughters() >= 1) {
+        bool break_flag = false;
+        for (int daughter_index = 0; daughter_index < static_cast<int>(prunedParticle.numberOfDaughters()); ++daughter_index) {
+          if (break_flag) break;
+          int daughter_pdgid = (prunedParticle.daughter(daughter_index))->pdgId();
+          if (PIDUtils::isPhotonPID(daughter_pdgid)) {
+            // this neutralino is the mom of a final state photon
+	    indices_neutralino_photon_mother.push_back(prunedParticleIndex);
+	    break_flag = true;
+          }
+        }
+      }
+      // check if progenitor is among mothers
+      if (prunedParticle.numberOfMothers() >= 1) {
+        bool break_flag = false;
+        for (int mother_index = 0; mother_index < static_cast<int>(prunedParticle.numberOfMothers()); ++mother_index) {
+          if (break_flag) break;
+          int mother_pdgid = (prunedParticle.mother(mother_index))->pdgId();
+          if (((eventProgenitor_ == "squark") && (PIDUtils::isSquarkPID(mother_pdgid))) ||
+              ((eventProgenitor_ == "gluino") && (PIDUtils::isGluinoPID(mother_pdgid)))) {
+	    // this neutralino is the daughter of a progenitor
+            indices_neutralino_progenitor_child.push_back(prunedParticleIndex);
+            break_flag = true;
+          }
+        }
+      }
+    }
+    else if (((eventProgenitor_ == "squark") && (PIDUtils::isSquarkPID(prunedParticle.pdgId()))) ||
+             ((eventProgenitor_ == "gluino") && (PIDUtils::isGluinoPID(prunedParticle.pdgId())))) {
+      // check if neutralino is among daughters
+      if (prunedParticle.numberOfDaughters() >= 1) {
+        bool break_flag = false;
+        for (int daughter_index = 0; daughter_index < static_cast<int>(prunedParticle.numberOfDaughters()); ++daughter_index) {
+          if (break_flag) break;
+          int daughter_pdgid = (prunedParticle.daughter(daughter_index))->pdgId();
+          if (PIDUtils::isNeutralinoPID(daughter_pdgid)) {
+	    // this progenitor is a mother of a neutralino
+            indices_progenitor.push_back(prunedParticleIndex);
+	    break_flag = true;
+          }
+        }
+      }
+    }
+
     if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "Found pruned particle at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pdgId: " << prunedParticle.pdgId();
     if (PIDUtils::isPhotonPID(prunedParticle.pdgId())) {
       int prunedParticleMomID = ((prunedParticle.mother(0) == nullptr) ? 0 : prunedParticle.mother(0)->pdgId());
       if (verbosity_ >= 3) edm::LogInfo("GenDeltaRAnalyzer") << "Found photon at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pT = " << prunedParticle.pt() << ", mom ID: " << prunedParticleMomID;
       if (PIDUtils::isNeutralinoPID(prunedParticleMomID)) {
-	++nStealthPhotons_;
-	assert(prunedParticle.mother(0) != nullptr);
-	if (neutralinoMass_ < 0.) neutralinoMass_ = prunedParticle.mother(0)->mass();
-	if ((prunedParticle.pt() >= 25.) && ((std::fabs(prunedParticle.eta())) < 1.442)) {
-	  ++nKinematicStealthPhotons_;
-	  kinematicStealthPhotonIndices.push_back(prunedParticleIndex);
-	}
-	if (prunedParticle.pt() >= 25.) {
-	  ++nEnergeticStealthPhotons_;
-	  energeticStealthPhotonIndices.push_back(prunedParticleIndex);
-	}
+        ++nStealthPhotons_;
+        assert(prunedParticle.mother(0) != nullptr);
+        if (neutralinoMass_ < 0.) neutralinoMass_ = prunedParticle.mother(0)->mass();
+        if ((prunedParticle.pt() >= 25.) && ((std::fabs(prunedParticle.eta())) < 1.442)) {
+          ++nKinematicStealthPhotons_;
+          kinematicStealthPhotonIndices.push_back(prunedParticleIndex);
+        }
+        if (prunedParticle.pt() >= 25.) {
+          ++nEnergeticStealthPhotons_;
+          energeticStealthPhotonIndices.push_back(prunedParticleIndex);
+        }
       }
     }
     else if (eventProgenitorMass_ < 0.) {
       if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "eventProgenitorMass unset. isSquarkPID: " << ((PIDUtils::isSquarkPID(prunedParticle.pdgId()))? "yes": "no") << "; isGluinoPID: " << ((PIDUtils::isGluinoPID(prunedParticle.pdgId()))? "yes": "no");
       if (((eventProgenitor_ == "squark") && (PIDUtils::isSquarkPID(prunedParticle.pdgId()))) ||
-	  ((eventProgenitor_ == "gluino") && (PIDUtils::isGluinoPID(prunedParticle.pdgId())))) {
-	if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "Setting eventProgenitorMass: " << prunedParticle.mass();
-	eventProgenitorMass_ = prunedParticle.mass();
+          ((eventProgenitor_ == "gluino") && (PIDUtils::isGluinoPID(prunedParticle.pdgId())))) {
+        if (verbosity_ >= 4) edm::LogInfo("GenDeltaRAnalyzer") << "Setting eventProgenitorMass: " << prunedParticle.mass();
+        eventProgenitorMass_ = prunedParticle.mass();
       }
     }
   }
@@ -142,6 +209,11 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     deltaR_photonPair_ = photon1_EtaPhi.get_deltaR(photon2_EtaPhi);
   }
 
+  eta_photon_leading_ = -99.0;
+  eta_photon_subleading_ = -99.0;
+  eta_progenitor_.clear();
+  eta_neutralino_progenitor_child_.clear();
+  eta_neutralino_photon_mother_.clear();
   if (nEnergeticStealthPhotons_ == 2) {
     int index_photon1 = energeticStealthPhotonIndices.at(0);
     int index_photon2 = energeticStealthPhotonIndices.at(1);
@@ -156,6 +228,21 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     else {
       eta_photon_leading_ = photon2.eta();
       eta_photon_subleading_ = photon1.eta();
+    }
+    assert(indices_progenitor.size() == 2);
+    for (const int & progenitor_index : indices_progenitor) {
+      const reco::GenParticle& progenitor_handle = (*(prunedGenParticlesHandle.product())).at(progenitor_index);
+      eta_progenitor_.push_back(progenitor_handle.eta());
+    }
+    assert(indices_neutralino_progenitor_child.size() == 2);
+    for (const int & neutralino_progenitor_child_index : indices_neutralino_progenitor_child) {
+      const reco::GenParticle& neutralino_progenitor_child_handle = (*(prunedGenParticlesHandle.product())).at(neutralino_progenitor_child_index);
+      eta_neutralino_progenitor_child_.push_back(neutralino_progenitor_child_handle.eta());
+    }
+    assert(indices_neutralino_photon_mother.size() == 2);
+    for (const int & neutralino_photon_mother_index : indices_neutralino_photon_mother) {
+      const reco::GenParticle& neutralino_photon_mother_handle = (*(prunedGenParticlesHandle.product())).at(neutralino_photon_mother_index);
+      eta_neutralino_photon_mother_.push_back(neutralino_photon_mother_handle.eta());
     }
   }
   eventInfoTree_->Fill();
@@ -182,31 +269,31 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
       float deltaR = photonEtaPhi.get_deltaR(genJetEtaPhi);
       if (verbosity_ >= 3) edm::LogInfo("GenDeltaRAnalyzer") << "Found genJet at genJetIndex = " << genJetIndex << ", eta = " << genJet.eta() << ", phi = " << genJet.phi() << ", deltaR = " << deltaR << ", PT = " << genJet.pt() << ", EM energy = " << genJet.emEnergy() << ", Hadronic energy = " << genJet.hadEnergy();
       if (deltaR_closestGenJet_ < 0.) { // closest deltaR is unset
-	assert(deltaR_secondClosestGenJet_ < 0.); // check that second-closest deltaR is unset as well
-	deltaR_closestGenJet_ = deltaR; // set closest deltaR to this deltaR
-	index_closestGenJet = genJetIndex;
+        assert(deltaR_secondClosestGenJet_ < 0.); // check that second-closest deltaR is unset as well
+        deltaR_closestGenJet_ = deltaR; // set closest deltaR to this deltaR
+        index_closestGenJet = genJetIndex;
       }
       else if (deltaR_secondClosestGenJet_ < 0.) { // second-closest deltaR is unset
-	if (deltaR < deltaR_closestGenJet_) { // if this deltaR is closer than previously set closest deltaR, move previously set closest deltaR to second-closest deltaR
-	  deltaR_secondClosestGenJet_ = deltaR_closestGenJet_;
-	  index_secondClosestGenJet = index_closestGenJet;
-	  deltaR_closestGenJet_ = deltaR;
-	  index_closestGenJet = genJetIndex;
-	}
-	else { // second-closest deltaR is unset but this deltaR is not as close as previously set deltaR
-	  deltaR_secondClosestGenJet_ = deltaR;
-	  index_secondClosestGenJet = genJetIndex;
-	}
+        if (deltaR < deltaR_closestGenJet_) { // if this deltaR is closer than previously set closest deltaR, move previously set closest deltaR to second-closest deltaR
+          deltaR_secondClosestGenJet_ = deltaR_closestGenJet_;
+          index_secondClosestGenJet = index_closestGenJet;
+          deltaR_closestGenJet_ = deltaR;
+          index_closestGenJet = genJetIndex;
+        }
+        else { // second-closest deltaR is unset but this deltaR is not as close as previously set deltaR
+          deltaR_secondClosestGenJet_ = deltaR;
+          index_secondClosestGenJet = genJetIndex;
+        }
       }
       else if (deltaR < deltaR_closestGenJet_) { // both closest and second-closest are set, and this deltaR is closer than previously set closest deltaR
-	deltaR_secondClosestGenJet_ = deltaR_closestGenJet_;
-	index_secondClosestGenJet = index_closestGenJet;
-	deltaR_closestGenJet_ = deltaR;
-	index_closestGenJet = genJetIndex;
+        deltaR_secondClosestGenJet_ = deltaR_closestGenJet_;
+        index_secondClosestGenJet = index_closestGenJet;
+        deltaR_closestGenJet_ = deltaR;
+        index_closestGenJet = genJetIndex;
       }
       else if (deltaR < deltaR_secondClosestGenJet_) { // // both closest and second-closest are set, and this deltaR is closer than previously set second-closest deltaR but not as close as previously set closest deltaR
-	deltaR_secondClosestGenJet_ = deltaR;
-	index_secondClosestGenJet = genJetIndex;
+        deltaR_secondClosestGenJet_ = deltaR;
+        index_secondClosestGenJet = genJetIndex;
       }
     } // ends loop over genJets
     closestGenJet_PT_ = ((*(genJetsHandle.product())).at(index_closestGenJet)).pt();
