@@ -1,6 +1,8 @@
 #ifndef H_PDGUTILS
 #define H_PDGUTILS
 
+#include <string>
+
 namespace PIDUtils {
   const int quark_d = 1;
   const int quark_u = 2;
@@ -17,11 +19,17 @@ namespace PIDUtils {
   const int muon_neutrino = 14;
   const int tau = 15;
   const int tau_neutrino = 16;
+  const int ZBoson = 23;
   const int WBoson = 24;
   const int mesonRangeMin = 100;
   const int mesonRangeMax = 999;
+  const int eta_meson = 221;
+  const int pizero = 111;
+  const int piplus = 211;
   const int baryonRangeMin = 1000;
   const int baryonRangeMax = 9999;
+  const int proton = 2212;
+  const int neutron = 2112;
   const int squark_dL = 1000001;
   const int squark_uL = 1000002;
   const int squark_sL = 1000003;
@@ -164,6 +172,82 @@ namespace PIDUtils {
 	    isLeptonNeutrinoPID(candidate_id) ||
 	    isWBosonPID(candidate_id) ||
 	    (abs_candidate_id >= squark_dL && abs_candidate_id < unusual2Min));
+  }
+
+  std::string getParticleString(const int& candidate_id) {
+    int abs_candidate_id = std::abs(candidate_id);
+    std::string antiparticle_prefix = "";
+    if (candidate_id < 0) antiparticle_prefix = "anti_";
+    std::string particle_pid_string = ("pdgid_" + std::to_string(abs_candidate_id));
+    switch (abs_candidate_id) {
+    case quark_d:
+      particle_pid_string = "d";
+      break;
+    case quark_u:
+      particle_pid_string = "u";
+      break;
+    case quark_s:
+      particle_pid_string = "s";
+      break;
+    case quark_c:
+      particle_pid_string = "c";
+      break;
+    case quark_b:
+      particle_pid_string = "b";
+      break;
+    case quark_t:
+      particle_pid_string = "t";
+      break;
+    case gluon:
+      particle_pid_string = "glu";
+      break;
+    case photon:
+      particle_pid_string = "gamma";
+      break;
+    case higgs:
+      particle_pid_string = "H";
+      break;
+    case electron:
+      particle_pid_string = "e";
+      break;
+    case electron_neutrino:
+      particle_pid_string = "nu_e";
+      break;
+    case muon:
+      particle_pid_string = "mu";
+      break;
+    case muon_neutrino:
+      particle_pid_string = "nu_mu";
+      break;
+    case tau:
+      particle_pid_string = "tau";
+      break;
+    case tau_neutrino:
+      particle_pid_string = "nu_tau";
+      break;
+    case WBoson:
+      particle_pid_string = "W";
+      break;
+    case ZBoson:
+      particle_pid_string = "Z";
+      break;
+    case eta_meson:
+      particle_pid_string = "eta";
+      break;
+    case pizero:
+      particle_pid_string = "pi0";
+      break;
+    case piplus:
+      particle_pid_string = "pi+";
+      break;
+    case proton:
+      particle_pid_string = "proton";
+      break;
+    case neutron:
+      particle_pid_string = "neutron";
+      break;
+    }
+    return (antiparticle_prefix + particle_pid_string);
   }
 }
 
