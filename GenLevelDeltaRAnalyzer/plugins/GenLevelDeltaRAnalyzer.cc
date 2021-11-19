@@ -82,6 +82,7 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
   // deltaRTree_->Branch("secondClosestGenJet_fraction_aux", &secondClosestGenJet_fraction_aux_, "secondClosestGenJet_fraction_aux/F");
   // deltaRTree_->Branch("secondClosestGenJet_totalFraction", &secondClosestGenJet_totalFraction_, "secondClosestGenJet_totalFraction/F");
 
+  lheEventInfoCollection_ = consumes<LHEEventProduct>(iConfig.getParameter<edm::InputTag>("LHEInfoSrc"));
   prunedGenParticlesCollection_ = consumes<edm::View<reco::GenParticle> >(iConfig.getParameter<edm::InputTag>("prunedGenParticlesSrc"));
   genJetsCollection_ = consumes<edm::View<reco::GenJet> >(iConfig.getParameter<edm::InputTag>("genJetsSrc"));
 }
@@ -123,6 +124,73 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   if (verbosity_ >= 2) {
     edm::LogInfo("GenDeltaRAnalyzer") << event_start_end_banner_;
     edm::LogInfo("GenDeltaRAnalyzer") << "Begin processing event ID: " << iEvent.id().event() << ", run: " << iEvent.id().run() << ", lumi: " << iEvent.luminosityBlock();
+  }
+
+  nLHEParticles_ = 0;
+  genHT_ = 0;
+  id_LHEParticle_.clear();
+  px_LHEParticle_.clear();
+  py_LHEParticle_.clear();
+  pz_LHEParticle_.clear();
+  energy_LHEParticle_.clear();
+  pt_LHEParticle_.clear(); /* maybe unreliable? */
+  eta_LHEParticle_.clear(); /* maybe unreliable? */
+  phi_LHEParticle_.clear(); /* maybe unreliable? */
+
+  edm::Handle<LHEEventProduct> LHEEventInfoHandle;
+  iEvent.getByToken(lheEventInfoCollection_, LHEEventInfoHandle);
+  if (LHEEventInfoHandle.isValid()) {
+    const lhef::HEPEUP& lheEventInfo = LHEEventInfoHandle->hepeup();
+    std::vector<lhef::HEPEUP::FiveVector> lheParticles = lheEventInfo.PUP;
+    size_t nLHEParticlesFromHandle = lheParticles.size();
+    if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Found " << nLHEParticlesFromHandle << " particles (of all status values) from LHE handle.";
+    for ( size_t lhe_particle_index = 0; lhe_particle_index < nLHEParticlesFromHandle; ++lhe_particle_index ) {
+      int status = lheEventInfo.ISTUP[lhe_particle_index];
+      if (status == 1) {
+	++nLHEParticles_;
+	int lhe_id = lheEventInfo.IDUP[lhe_particle_index];
+	id_LHEParticle_.push_back(lhe_id);
+
+	// found from LHE product
+	float lhe_px = lheParticles[lhe_particle_index][0];
+	float lhe_py = lheParticles[lhe_particle_index][1];
+	float lhe_pz = lheParticles[lhe_particle_index][2];
+	float lhe_e  = lheParticles[lhe_particle_index][3];
+	px_LHEParticle_.push_back(lhe_px);
+	py_LHEParticle_.push_back(lhe_py);
+	pz_LHEParticle_.push_back(lhe_pz);
+	energy_LHEParticle_.push_back(lhe_e);
+
+	// calculated explicitly
+	float lhe_pt = std::sqrt(std::pow(lhe_px, 2) + std::pow(lhe_py, 2));
+	bool onPlusZSide = (lhe_pz >= 0.);
+	float lhe_theta_abs = std::atan(std::fabs(lhe_pt/lhe_pz));
+	float lhe_eta_abs = -1.0*std::log(std::tan(0.5*lhe_theta_abs));
+	float lhe_eta = (onPlusZSide ? lhe_eta_abs : (-1.0*lhe_eta_abs));
+	float lhe_phi = 0.;
+	float tmp_atan = std::atan(std::fabs(lhe_py/lhe_px));
+	if (lhe_px >= 0.) {
+	  if (lhe_py >= 0.) lhe_phi = tmp_atan;
+	  else lhe_phi = -1.0*tmp_atan;
+	}
+	else {
+	  if (lhe_py >= 0.) lhe_phi = (constants::PI - tmp_atan);
+	  else lhe_phi = (-1.0*(constants::PI - tmp_atan));
+	}
+	genHT_ += lhe_pt;
+	pt_LHEParticle_.push_back(lhe_pt);
+	eta_LHEParticle_.push_back(lhe_eta);
+	phi_LHEParticle_.push_back(lhe_phi);
+
+	if (verbosity_ >= 3) {
+	  edm::LogInfo("GenDeltaRAnalyzer") << "Found LHE particle: " << PIDUtils::getParticleString(lhe_id) << " at index: " << lhe_particle_index << ", eta = " << lhe_eta << ", phi = " << lhe_phi << ", pt = " << lhe_pt << ", px = " << lhe_px << ", py = " << lhe_py << ", pz = " << lhe_pz << ", energy = " << lhe_e;
+	}
+      }
+    }
+    if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "number of LHE particles with status 1 = " << nLHEParticles_ << "; genHT = " << genHT_;
+  }
+  else {
+    edm::LogInfo("GenDeltaRAnalyzer") << "WARNING: LHE info unavailable.";
   }
 
   edm::Handle<edm::View<reco::GenParticle> > prunedGenParticlesHandle;
@@ -178,18 +246,25 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     std::string mothers_description = "(";
     if (prunedParticle.numberOfMothers() > 0) {
       for (size_t mother_index = 0; mother_index < prunedParticle.numberOfMothers(); ++mother_index) {
-	mothers_description += (PIDUtils::getParticleString((prunedParticle.mother(mother_index))->pdgId()) + ": (" + std::to_string((prunedParticle.mother(mother_index))->eta()) + ", " + std::to_string((prunedParticle.mother(mother_index))->phi()) + "), ");
+	const reco::Candidate * prunedParticleMother = prunedParticle.mother(mother_index);
+	mothers_description += (PIDUtils::getParticleString(prunedParticleMother->pdgId()) + ": (eta: " + std::to_string(prunedParticleMother->eta()) + ", phi: " + std::to_string(prunedParticleMother->phi()) + ", pt: " + std::to_string(prunedParticleMother->pt()) + ", status: " + std::to_string(prunedParticleMother->status())) + ", vertex: " + ("<" + std::to_string(prunedParticleMother->vx()) + ", " + std::to_string(prunedParticleMother->vy()) + ", " + std::to_string(prunedParticleMother->vz()) + ">");
+	int mother_nmothers = prunedParticleMother->numberOfMothers();
+	mothers_description += (", mother_nmothers: " + std::to_string(mother_nmothers));
+	int mother_ndaughters = prunedParticleMother->numberOfDaughters();
+	mothers_description += (", mother_ndaughters: " + std::to_string(mother_ndaughters));
+	mothers_description += "), ";
       }
     }
     mothers_description += ")";
     std::string daughters_description = "(";
     if (prunedParticle.numberOfDaughters() > 0) {
       for (size_t daughter_index = 0; daughter_index < prunedParticle.numberOfDaughters(); ++daughter_index) {
-	daughters_description += (PIDUtils::getParticleString((prunedParticle.daughter(daughter_index))->pdgId()) + ": (" + std::to_string((prunedParticle.daughter(daughter_index))->eta()) + ", " + std::to_string((prunedParticle.daughter(daughter_index))->phi()) + "), ");
+	// daughters_description += (PIDUtils::getParticleString((prunedParticle.daughter(daughter_index))->pdgId()) + ": (" + std::to_string((prunedParticle.daughter(daughter_index))->eta()) + ", " + std::to_string((prunedParticle.daughter(daughter_index))->phi()) + "), ");
+	daughters_description += (PIDUtils::getParticleString((prunedParticle.daughter(daughter_index))->pdgId()) + ": (eta: " + std::to_string((prunedParticle.daughter(daughter_index))->eta()) + ", phi: " + std::to_string((prunedParticle.daughter(daughter_index))->phi()) + ", pt: " + std::to_string((prunedParticle.daughter(daughter_index))->pt()) + ", status: " + std::to_string((prunedParticle.daughter(daughter_index))->status()) + "), ");
       }
     }
     daughters_description += ")";
-    if ((verbosity_ >= 4) || ((verbosity_ >= 3) && (prunedParticle.pt() >= 25.))) edm::LogInfo("GenDeltaRAnalyzer") << "Found pruned particle: " << PIDUtils::getParticleString(prunedParticle.pdgId()) << " at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pt: " << prunedParticle.pt() << ", isPromptFinalState: " << ((prunedParticle.isPromptFinalState()) ? "true" : "false") << ", mothers: " << mothers_description << ", daughters: " << daughters_description;
+    if ((verbosity_ >= 4) || ((verbosity_ >= 3) && (prunedParticle.pt() >= 25.))) edm::LogInfo("GenDeltaRAnalyzer") << "Found pruned particle: " << PIDUtils::getParticleString(prunedParticle.pdgId()) << " at prunedParticleIndex = " << prunedParticleIndex << ", eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pt: " << prunedParticle.pt() << ", isPromptFinalState: " << ((prunedParticle.isPromptFinalState()) ? "true" : "false") << ", vertex: " << "<" << prunedParticle.vx() << ", " << prunedParticle.vy() << ", " << prunedParticle.vz() << ">" << ", mothers: " << mothers_description << ", daughters: " << daughters_description;
     
     if (PIDUtils::isPhotonPID(prunedParticle.pdgId())) {
       if ((prunedParticle.pt() >= 25.) &&

@@ -4,7 +4,9 @@
 <use name="FWCore/PluginManager"/>
 <use name="FWCore/ParameterSet"/>
 <use name="FWCore/MessageLogger"/>
+<use name="SimDataFormats/GeneratorProducts"/>
 <use name="DataFormats/HepMCCandidate"/>
+<use name="DataFormats/Candidate"/>
 <use name="DataFormats/JetReco"/>
 <flags CXXFLAGS="-g"/>
 <flags EDM_PLUGIN="1"/>

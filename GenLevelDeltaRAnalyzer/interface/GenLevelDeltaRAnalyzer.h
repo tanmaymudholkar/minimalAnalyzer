@@ -19,7 +19,9 @@
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 
+#include "SimDataFormats/GeneratorProducts/interface/LHEEventProduct.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/JetReco/interface/GenJet.h"
 
 #include "dataStructures.h"
@@ -72,6 +74,17 @@ private:
   /* std::vector<float> eta_neutralino_photon_mother_; */
   /* float eta_photon_leading_; */
   /* float eta_photon_subleading_; */
+  int nLHEParticles_;
+  float genHT_;
+  std::vector<int> id_LHEParticle_;
+  std::vector<float> px_LHEParticle_;
+  std::vector<float> py_LHEParticle_;
+  std::vector<float> pz_LHEParticle_;
+  std::vector<float> energy_LHEParticle_;
+  std::vector<float> pt_LHEParticle_; /* maybe unreliable? */
+  std::vector<float> eta_LHEParticle_; /* maybe unreliable? */
+  std::vector<float> phi_LHEParticle_; /* maybe unreliable? */
+
   float deltaR_photonPair_;
   int nKinematicGenJets_;
   int nKinematicGenPhotons_;
@@ -109,6 +122,7 @@ private:
   /* float secondClosestGenJet_fraction_aux_; */
   /* float secondClosestGenJet_totalFraction_; // for debugging only */
 
+  edm::EDGetTokenT<LHEEventProduct> lheEventInfoCollection_;
   edm::EDGetTokenT<edm::View<reco::GenParticle> > prunedGenParticlesCollection_;
   edm::EDGetTokenT<edm::View<reco::GenJet> > genJetsCollection_;
 };
