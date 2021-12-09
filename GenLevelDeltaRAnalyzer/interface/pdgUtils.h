@@ -94,6 +94,9 @@ namespace PIDUtils {
     return ((abs_candidate_id >= baryonRangeMin) &&
             (abs_candidate_id <= baryonRangeMax));
   }
+  bool isProtonPID(const int& candidate_id) {
+    return (candidate_id == proton);
+  }
   bool isGluinoPID(const int& candidate_id) {
     return (candidate_id == gluino);
   }

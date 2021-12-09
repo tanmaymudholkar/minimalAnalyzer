@@ -102,6 +102,9 @@ private:
   std::vector<float> phi_kinematicGenPhoton_secondClosestGenJet_;
   std::vector<float> em_fraction_kinematicGenPhoton_secondClosestGenJet_;
 
+  int nKinematicFinalStatePhotons_;
+  std::vector<int> parentage_kinematicFinalStatePhoton_;
+
   /* TTree* deltaRTree_; */
   /* float evt_eventProgenitorMass_; */
   /* float evt_neutralinoMass_; */

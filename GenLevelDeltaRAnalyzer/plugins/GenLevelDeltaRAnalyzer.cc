@@ -61,6 +61,16 @@ GenLevelDeltaRAnalyzer::GenLevelDeltaRAnalyzer(const edm::ParameterSet& iConfig)
   eventInfoTree_->Branch("eta_kinematicGenPhoton_secondClosestGenJet", &eta_kinematicGenPhoton_secondClosestGenJet_);
   eventInfoTree_->Branch("phi_kinematicGenPhoton_secondClosestGenJet", &phi_kinematicGenPhoton_secondClosestGenJet_);
   eventInfoTree_->Branch("em_fraction_kinematicGenPhoton_secondClosestGenJet", &em_fraction_kinematicGenPhoton_secondClosestGenJet_);
+  eventInfoTree_->Branch("nKinematicFinalStatePhotons", &nKinematicFinalStatePhotons_, "nKinematicFinalStatePhotons/I");
+  eventInfoTree_->Branch("parentage_kinematicFinalStatePhoton", &parentage_kinematicFinalStatePhoton_);
+  // Definition of parentage:
+  // Loop over all final state photons with pt > 25 GeV
+  // Go up the chain and find earliest photon that doesn't have a single mother photon
+  // Call that one the progenitor
+  // 0: unknown
+  // 1: progenitor matched (by pt and eta/phi) to an LHE photon
+  // 2: progenitor's mother is proton with status = 4
+  // 3: progenitor's mother is a quark
 
   // deltaRTree_ = fileService->make<TTree>("deltaRTree", "deltaRTree");
   // deltaRTree_->Branch("evt_eventProgenitorMass", &evt_eventProgenitorMass_, "evt_eventProgenitorMass/F");
@@ -136,6 +146,11 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   pt_LHEParticle_.clear(); /* maybe unreliable? */
   eta_LHEParticle_.clear(); /* maybe unreliable? */
   phi_LHEParticle_.clear(); /* maybe unreliable? */
+  int nLHEPhotons = 0;
+  std::vector<float> LHEPhotonPTs;
+  LHEPhotonPTs.clear();
+  std::vector<angularVariablesStruct> LHEPhotonAngles;
+  LHEPhotonAngles.clear();
 
   edm::Handle<LHEEventProduct> LHEEventInfoHandle;
   iEvent.getByToken(lheEventInfoCollection_, LHEEventInfoHandle);
@@ -185,6 +200,12 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
 	if (verbosity_ >= 3) {
 	  edm::LogInfo("GenDeltaRAnalyzer") << "Found LHE particle: " << PIDUtils::getParticleString(lhe_id) << " at index: " << lhe_particle_index << ", eta = " << lhe_eta << ", phi = " << lhe_phi << ", pt = " << lhe_pt << ", px = " << lhe_px << ", py = " << lhe_py << ", pz = " << lhe_pz << ", energy = " << lhe_e;
 	}
+
+	if (PIDUtils::isPhotonPID(lhe_id)) {
+	  ++nLHEPhotons;
+	  LHEPhotonPTs.push_back(lhe_pt);
+	  LHEPhotonAngles.push_back(angularVariablesStruct(lhe_eta, lhe_phi));
+	}
       }
     }
     if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "number of LHE particles with status 1 = " << nLHEParticles_ << "; genHT = " << genHT_;
@@ -219,6 +240,8 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   eta_kinematicGenPhoton_secondClosestGenJet_.clear();
   phi_kinematicGenPhoton_secondClosestGenJet_.clear();
   em_fraction_kinematicGenPhoton_secondClosestGenJet_.clear();
+  nKinematicFinalStatePhotons_ = 0;
+  parentage_kinematicFinalStatePhoton_.clear();
 
   // first get list and angles of gen jets
   std::vector<angularVariablesStruct> genJetAngles;
@@ -269,7 +292,7 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
     if (PIDUtils::isPhotonPID(prunedParticle.pdgId())) {
       if ((prunedParticle.pt() >= 25.) &&
 	  (std::fabs(prunedParticle.eta()) <= 1.442) &&
-	  (prunedParticle.isPromptFinalState())) { // photon passing kinematic cuts
+	  (prunedParticle.isPromptFinalState())) { // prompt final state photon passing kinematic cuts
 	kinematicGenPhotonIndices.push_back(prunedParticleIndex);
 	++nKinematicGenPhotons_;
 	pt_kinematicGenPhoton_.push_back(prunedParticle.pt());
@@ -303,6 +326,64 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
 	  edm::LogInfo("GenDeltaRAnalyzer") << "Index of second-closest gen jet: " << index_deltaR_second_closest_gen_jet.index << ", with deltaR: " << index_deltaR_second_closest_gen_jet.deltaR;
 	}
       }
+      if ((prunedParticle.pt() >= 25.) &&
+	  (std::fabs(prunedParticle.eta()) <= 1.442) &&
+	  (prunedParticle.status() == 1)) { // final state photon (not necessarily prompt) passing kinematic cuts
+	++nKinematicFinalStatePhotons_;
+
+	// find progenitor photon
+	const reco::Candidate * current_photon = &((*(prunedGenParticlesHandle.product())).at(prunedParticleIndex));
+	while (true) {
+	  if (current_photon->numberOfMothers() == 1) {
+	    if (PIDUtils::isPhotonPID(current_photon->mother(0)->pdgId())) {
+	      current_photon = current_photon->mother(0);
+	    }
+	    else {
+	      // current_photon is the progenitor
+	      break;
+	    }
+	  }
+	  else {
+	    // current_photon is the progenitor
+	    break;
+	  }
+	}
+
+	int parentage = 0;
+	angularVariablesStruct current_photon_eta_phi = angularVariablesStruct(current_photon->eta(), current_photon->phi());
+	// check if progenitor is matched to an LHE photon
+	if (parentage == 0) {
+	  if (nLHEPhotons > 0) {
+	    for (int LHEPhotonIndex = 0; LHEPhotonIndex < nLHEPhotons; ++LHEPhotonIndex) {
+	      float ptratio = (LHEPhotonPTs.at(LHEPhotonIndex))/(current_photon->pt());
+	      if (std::fabs(ptratio - 1.0) < 0.1) { // pt-matching: the two pts must differ by no more than 10%
+		float deltaR_wrt_lhe_photon = current_photon_eta_phi.get_deltaR(LHEPhotonAngles.at(LHEPhotonIndex));
+		if (deltaR_wrt_lhe_photon < 0.05) { // deltaR-matching: the deltaR must be less than 0.05
+		  parentage = 1;
+		  break;
+		}
+	      }
+	    }
+	  }
+	}
+	// check if progenitor's mother is proton with status = 4
+	if (parentage == 0) {
+	  if (current_photon->numberOfMothers() == 1) {
+	    if ((PIDUtils::isProtonPID(current_photon->mother(0)->pdgId())) && ((current_photon->mother(0)->status()) == 4)) {
+	      parentage = 2;
+	    }
+	  }
+	}
+	// check if progenitor's mother is a g or q
+	if (parentage == 0) {
+	  if (current_photon->numberOfMothers() >= 1) {
+	    if (PIDUtils::isJetCandidatePID(current_photon->mother(0)->pdgId())) {
+	      parentage = 3;
+	    }
+	  }
+	}
+	parentage_kinematicFinalStatePhoton_.push_back(parentage);
+      } // ends loop over final state photons
     }
   }
   eventInfoTree_->Fill();
