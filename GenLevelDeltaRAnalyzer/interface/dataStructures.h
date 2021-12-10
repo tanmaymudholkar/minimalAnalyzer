@@ -86,4 +86,15 @@ struct angularVariablesStruct{
   }
 };
 
+struct PTEtaPhiStruct{
+  float pt, eta, phi;
+  PTEtaPhiStruct () : pt(0.), eta(0.), phi(0.) {}
+  PTEtaPhiStruct (float pt_, float eta_, float phi_) : pt(pt_), eta(eta_), phi(phi_) {}
+
+  friend std::ostream& operator<< (std::ostream& out, const PTEtaPhiStruct& pt_eta_phi_) {
+    out << "(pt: " << pt_eta_phi_.pt << ", eta: " << pt_eta_phi_.eta << ", phi: " << pt_eta_phi_.phi << ")";
+    return out;
+  }
+};
+
 #endif

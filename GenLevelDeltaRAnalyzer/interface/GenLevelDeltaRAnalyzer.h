@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <string>
+#include <iostream>
+#include <fstream>
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
@@ -102,8 +104,23 @@ private:
   std::vector<float> phi_kinematicGenPhoton_secondClosestGenJet_;
   std::vector<float> em_fraction_kinematicGenPhoton_secondClosestGenJet_;
 
-  int nKinematicFinalStatePhotons_;
-  std::vector<int> parentage_kinematicFinalStatePhoton_;
+  bool selection_map_is_available_;
+  // convention for selection map:
+  // (run, lumi, event) details are ((selection_map_<leading|subLeading>.at(run)).at(lumi)).at(event)
+  std::string selection_map_source_;
+  std::map<int, std::map<int, std::map<int, PTEtaPhiStruct> > > selection_map_leading_photon_;
+  std::map<int, std::map<int, std::map<int, PTEtaPhiStruct> > > selection_map_subLeading_photon_;
+  int nMatchedFinalStatePhotons_;
+  // Definition of parentage:
+  // Loop over all final state photons with pt > 25 GeV
+  // Go up the chain and find earliest photon that doesn't have a single mother photon
+  // Call that one the progenitor
+  // 0: unknown
+  // 1: progenitor matched (by pt and eta/phi) to an LHE photon
+  // 2: progenitor's mother is proton with status = 4
+  // 3: progenitor's mother is a quark
+  int parentage_leadingPhoton_;
+  int parentage_subLeadingPhoton_;
 
   /* TTree* deltaRTree_; */
   /* float evt_eventProgenitorMass_; */
