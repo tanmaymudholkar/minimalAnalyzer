@@ -59,6 +59,7 @@ private:
   virtual void endJob() override;
   std::string daughter_pdgIds(const reco::GenParticle& particle);
   std::string mother_pdgIds(const reco::GenParticle& particle);
+  int get_photon_parentage(const reco::Candidate *, const int &, const std::vector<float> &, const std::vector<angularVariablesStruct> &);
 
   // ----------member data ---------------------------
   /* std::string eventProgenitor_; */
@@ -110,7 +111,6 @@ private:
   std::string selection_map_source_;
   std::map<int, std::map<int, std::map<int, PTEtaPhiStruct> > > selection_map_leading_photon_;
   std::map<int, std::map<int, std::map<int, PTEtaPhiStruct> > > selection_map_subLeading_photon_;
-  int nMatchedFinalStatePhotons_;
   // Definition of parentage:
   // Loop over all final state photons with pt > 25 GeV
   // Go up the chain and find earliest photon that doesn't have a single mother photon
@@ -119,6 +119,9 @@ private:
   // 1: progenitor matched (by pt and eta/phi) to an LHE photon
   // 2: progenitor's mother is proton with status = 4
   // 3: progenitor's mother is a quark
+  int nTotalFinalStatePhotons_;
+  std::vector<int> parentage_finalStatePhoton_;
+  int nMatchedFinalStatePhotons_;
   int parentage_leadingPhoton_;
   int parentage_subLeadingPhoton_;
 
