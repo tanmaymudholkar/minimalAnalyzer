@@ -360,6 +360,9 @@ GenLevelDeltaRAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSetup&
   std::vector<int> kinematicGenPhotonIndices;
   for (int prunedParticleIndex = 0; prunedParticleIndex < nPrunedParticles; ++prunedParticleIndex) {
     const reco::GenParticle& prunedParticle = (*(prunedGenParticlesHandle.product())).at(prunedParticleIndex);
+    if (PIDUtils::isGravitinoPID(prunedParticle.pdgId())) {
+      if (verbosity_ >= 2) edm::LogInfo("GenDeltaRAnalyzer") << "Found gravitino at eta = " << prunedParticle.eta() << ", phi = " << prunedParticle.phi() << ", pt: " << prunedParticle.pt() << ", mass: " << prunedParticle.mass();
+    }
     std::string mothers_description = "(";
     if (prunedParticle.numberOfMothers() > 0) {
       for (size_t mother_index = 0; mother_index < prunedParticle.numberOfMothers(); ++mother_index) {
